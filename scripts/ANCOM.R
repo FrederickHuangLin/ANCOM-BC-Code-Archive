@@ -13,10 +13,12 @@ ancom.W = function(otu_data,var_data,
   otu_ids=colnames(otu_data)[-1]
   
   if(repeated==F){
-    data_comp=data.frame(merge(otu_data,var_data[,c("Sample.ID",main.var)], by="Sample.ID", all.y=T),
+    data_comp=data.frame(merge(otu_data,var_data[,c("Sample.ID",main.var)], 
+                               by="Sample.ID", all.y=T),
                          row.names=NULL)
   }else if(repeated==T){
-    data_comp=data.frame(merge(otu_data,var_data[,c("Sample.ID",main.var,repeat.var)], by="Sample.ID", all.y=T),
+    data_comp=data.frame(merge(otu_data,var_data[,c("Sample.ID",main.var,repeat.var)], 
+                               by="Sample.ID", all.y=T),
                          row.names=NULL)
   }
   colnames(data_comp)=c("Sample.ID", otu_ids, main.var)
@@ -44,13 +46,11 @@ ancom.W = function(otu_data,var_data,
          and optionally an ID for repeated measures.")
   }
   
-  
-  
-    if( repeated==FALSE & adjusted == FALSE){
-       if( length(unique(data_comp[,which(colnames(data_comp)==main.var)]))==2 ){
-          tfun <- exactRankTests::wilcox.exact
-       } else{
-          tfun <- stats::kruskal.test
+  if( repeated==FALSE & adjusted == FALSE){
+    if( length(unique(data_comp[,which(colnames(data_comp)==main.var)]))==2 ){
+      tfun <- exactRankTests::wilcox.exact
+      } else{
+        tfun <- stats::kruskal.test
     }
     }else if( repeated==FALSE & adjusted == TRUE){
       tfun <- stats::aov
@@ -94,7 +94,6 @@ ancom.W = function(otu_data,var_data,
   
   ind <- lower.tri(logratio.mat)
   logratio.mat[ind] <- t(logratio.mat)[ind]
-  
   
   logratio.mat[which(is.finite(logratio.mat)==FALSE)] <- 1
   
