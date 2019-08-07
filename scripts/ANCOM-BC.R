@@ -68,14 +68,14 @@ feature_table_pre_process=function(feature.table, meta.data, sample.var, group.v
     unlist(tapply(i, rep(1:n.grp.origin, n.samp.grp.origin), function(j) outlier_check(j)))))
   feature.table[feature.table.out]=NA
   
-  # 2. Filter out taxa with zeros >= pre.cut
+  # 2. Discard taxa with zeros >= pre.cut
   taxa.zero.prop=apply(feature.table, 1, function(x) sum(x==0, na.rm = T)/length(x[!is.na(x)]))
   filter.taxa=which(taxa.zero.prop>=pre.cut)
   if(length(filter.taxa)>0){
     feature.table=feature.table[-filter.taxa, ]
   }
   
-  # 3. Filter out subjects with library size < 1000
+  # 3. Discard samples with library size < 1000
   library.size=colSums(feature.table, na.rm = T)
   sample.ID=colnames(feature.table)
   meta.data=meta.data[match(sample.ID, meta.data[, sample.var]), ]
@@ -97,7 +97,7 @@ feature_table_pre_process=function(feature.table, meta.data, sample.var, group.v
   taxa.id=rownames(feature.table)
   n.samp=ncol(feature.table)
   
-  # 5. Identify taxa containing structure zeros
+  # 5. Identify taxa with structure zeros
   present.table=as.matrix(feature.table)
   present.table[is.na(present.table)]=0
   present.table[present.table!=0]=1
@@ -171,7 +171,7 @@ ANCOM_BC=function(feature.table, grp.name, grp.ind, struc.zero, adj.method,
     unlist(tapply(x, rep(1:n.grp, n.samp.grp), function(y) length(y[!is.na(y)])))))
   mu.var=mu.var/sample.size
   
-  ### 2. Estimate the group mean difference of sampling fractions by E-M algorithm
+  ### 2. Estimate the bias of sampling fractions by E-M algorithm
   Delta=mu[, 1]-mu[, 2]
   Delta.var.est=rowSums(mu.var)
   
