@@ -121,7 +121,7 @@ abn.seed = 1; obs.seed = 2; library.size="small"
 test.dat=abn.tab.gen(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs.seed,
                      struc.zero.prop=0.2, out.zero.prop=0.05, library.size)
 obs.abn=test.dat$obs.abn
-write_csv(obs.abn, "demo_otu.csv")
+write_csv(obs.abn%>%tibble::rownames_to_column("taxon"), "demo_otu.csv")
 
 # Synthetic metadata
 meta.data=data.frame(Sample.ID=paste0("sub", seq(n.samp.grp1+n.samp.grp2)),
@@ -136,7 +136,9 @@ write_csv(meta.data, "demo_meta.csv")
 source("ANCOM-BC.R")
 
 # Read in OTU table and metadata
-obs.abn=read_csv("demo_otu.csv")
+obs.abn=as.data.frame(read_csv("demo_otu.csv"))
+rownames(obs.abn)=obs.abn$taxon
+obs.abn=obs.abn[, -1]
 meta.data=read_csv("demo_meta.csv")
 
 # Data pre-processing
@@ -152,14 +154,15 @@ grp.name=group.name; grp.ind=group.ind; adj.method="bonferroni"
 tol.EM=1e-5; max.iterNum=100; alpha=0.05
 
 # Run ANCOM-BC
-start_time <- Sys.time()
+start_time = Sys.time()
 out=ANCOM_BC(feature.table, grp.name, grp.ind, struc.zero, adj.method, 
              tol.EM, max.iterNum, alpha)
-end_time <- Sys.time()
+end_time = Sys.time()
 end_time - start_time
 
 # Results
-write_csv(out$res, "demo_output.csv")
+res = cbind(taxon = rownames(out$feature.table), out$res)
+write_csv(res, "demo_output.csv")
 ```
 
 # Session information
