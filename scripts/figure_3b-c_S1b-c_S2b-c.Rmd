@@ -17,8 +17,6 @@ library(pander)
 panderOptions('table.caption.prefix', NULL)
 panderOptions('table.continues', NULL)
 panderOptions('table.emphasize.rownames', FALSE)
-
-source("ANCOM-BC.R")
 ```
 
 # 1. Generate Simulation Data
@@ -59,14 +57,14 @@ abn.tab.gen1=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   diff3.ind=sample(which(diff.ind==0), struc.zero.prop*length(which(diff.ind==0)), replace = FALSE)
   diff.ind[diff3.ind]=-1
   
-  # Signal size
+  # Effect size
   effect.size=rep(1, n.taxa)
   effect.size[diff1.ind]=runif(length(diff1.ind), 1, 10)
   effect.size[diff2.ind]=runif(length(diff2.ind), 0.1, 1)
   effect.size[diff3.ind]=0
   names(effect.size)=paste0("taxon", seq(n.taxa))
   
-  # Abundance template
+  # Mean absolute abundance in the ecosystem
   temp.grp1=round(lambda*effect.size)
   temp.grp2=round(lambda)
   for (i in which(effect.size!=1)) {
@@ -75,7 +73,7 @@ abn.tab.gen1=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   temp.dat=data.frame(temp.grp1, temp.grp2, effect.size)
   rownames(temp.dat)=paste0("taxon", seq(n.taxa))
   
-  # Abundance table in the ecosystem
+  # Absolute abundance in the ecosystem
   abn.mat=matrix(0, ncol=n.samp, nrow=n.taxa)
   for(i in 1:n.taxa){
     abn.mat[i, ]=c(rpois(n.samp.grp1, temp.grp1[i]), rpois(n.samp.grp2, temp.grp2[i]))
@@ -88,7 +86,7 @@ abn.tab.gen1=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   abn.total=colSums(abn.mat)
   names(abn.total)=paste0("sub", seq(n.samp))
   
-  # Number of taxa that are sampled for each subject
+  # Library size
   if(library.size=="large"){
     depth=1/runif(n.samp, 5, 10)
     obs.total=round(max(abn.total)*depth)
@@ -98,13 +96,13 @@ abn.tab.gen1=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   }
   names(obs.total)=paste0("sub", seq(n.samp))
   
-  # Specimen abundance
+  # Absolute abundance in a sample
   set.seed(obs.seed)
   obs.list=lapply(1:n.samp, function(i) 
     phyloseq:::rarefaction_subsample(x=abn.mat[, i], sample.size=obs.total[i]))
   obs.mat=Reduce('cbind', obs.list)
   
-  # Prepare output data sets
+  # Prepare outputs
   abn.dat=data.frame(abn.mat, row.names = NULL)
   rownames(abn.dat)=paste0("taxon", seq(n.taxa))
   colnames(abn.dat)=paste0("sub", seq(n.samp))
@@ -123,8 +121,8 @@ abn.tab.gen1=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   
   test.data=list(temp.dat, abn.dat, obs.dat, effect.size, grp.ind, 
                  diff.ind, out.ind, c.mult, abn.total, obs.total)
-  names(test.data)=c("template", "pop.abn", "obs.abn", "effect.size", "grp", 
-                     "diff.taxa", "outlier", "mult", "abn.total", "obs.total")
+  names(test.data)=c("mean.eco.abn", "eco.abn", "obs.abn", "effect.size", "grp", 
+                     "diff.taxa", "outlier", "mult", "micro.load", "lib.size")
   return(test.data)
 }
 ```
@@ -165,14 +163,14 @@ abn.tab.gen2=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   diff3.ind=sample(which(diff.ind==0), struc.zero.prop*length(which(diff.ind==0)), replace = FALSE)
   diff.ind[diff3.ind]=-1
   
-  # Signal size
+  # Effect size
   effect.size=rep(1, n.taxa)
   effect.size[diff1.ind]=runif(length(diff1.ind), 1, 10)
   effect.size[diff2.ind]=runif(length(diff2.ind), 0.1, 1)
   effect.size[diff3.ind]=0
   names(effect.size)=paste0("taxon", seq(n.taxa))
   
-  # Abundance template
+  # Mean absolute abundance in the ecosystem
   temp.grp1=round(lambda*effect.size)
   temp.grp2=round(lambda)
   for (i in which(effect.size!=1)) {
@@ -181,7 +179,7 @@ abn.tab.gen2=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   temp.dat=data.frame(temp.grp1, temp.grp2, effect.size)
   rownames(temp.dat)=paste0("taxon", seq(n.taxa))
   
-  # Abundance table in the ecosystem
+  # Absolute abundance in the ecosystem
   abn.mat=matrix(0, ncol=n.samp, nrow=n.taxa)
   for(i in 1:n.taxa){
     abn.mat[i, ]=c(rpois(n.samp.grp1, temp.grp1[i]), rpois(n.samp.grp2, temp.grp2[i]))
@@ -194,7 +192,7 @@ abn.tab.gen2=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   abn.total=colSums(abn.mat)
   names(abn.total)=paste0("sub", seq(n.samp))
   
-  # Number of taxa that are sampled for each subject
+  # Library size
   if(library.size=="large"){
     depth=1/runif(n.samp, 5, 10)
     obs.total=round(max(abn.total)*depth)
@@ -204,13 +202,13 @@ abn.tab.gen2=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   }
   names(obs.total)=paste0("sub", seq(n.samp))
   
-  # Specimen abundance
+  # Absolute abundance in a sample
   set.seed(obs.seed)
   obs.list=lapply(1:n.samp, function(i) 
     phyloseq:::rarefaction_subsample(x=abn.mat[, i], sample.size=obs.total[i]))
   obs.mat=Reduce('cbind', obs.list)
   
-  # Prepare output data sets
+  # Prepare outputs
   abn.dat=data.frame(abn.mat, row.names = NULL)
   rownames(abn.dat)=paste0("taxon", seq(n.taxa))
   colnames(abn.dat)=paste0("sub", seq(n.samp))
@@ -229,8 +227,8 @@ abn.tab.gen2=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   
   test.data=list(temp.dat, abn.dat, obs.dat, effect.size, grp.ind, 
                  diff.ind, out.ind, c.mult, abn.total, obs.total)
-  names(test.data)=c("template", "pop.abn", "obs.abn", "effect.size", "grp", 
-                     "diff.taxa", "outlier", "mult", "abn.total", "obs.total")
+  names(test.data)=c("mean.eco.abn", "eco.abn", "obs.abn", "effect.size", "grp", 
+                     "diff.taxa", "outlier", "mult", "micro.load", "lib.size")
   return(test.data)
 }
 ```
@@ -267,13 +265,13 @@ abn.tab.gen3=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   szero.pos=sample(which(diff.ind==0), struc.zero.prop*length(which(diff.ind==0)), replace = FALSE)
   diff.ind[szero.pos]=-1
   
-  # Signal size
+  # Effect size
   effect.size=rep(1, n.taxa)
   effect.size[diff.pos]=runif(length(diff.pos), 1, 10)
   effect.size[szero.pos]=0
   names(effect.size)=paste0("taxon", seq(n.taxa))
   
-  # Abundance template
+  # Mean absolute abundance in the ecosystem
   temp.grp1=round(lambda); temp.grp2=round(lambda)
   for (i in diff.pos) {
     rand.ind=sample(c(1, 2), 1)
@@ -294,7 +292,7 @@ abn.tab.gen3=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   temp.dat=data.frame(temp.grp1, temp.grp2, effect.size)
   rownames(temp.dat)=paste0("taxon", seq(n.taxa))
   
-  # Abundance table in the ecosystem
+  # Absolute abundance in the ecosystem
   abn.mat=matrix(0, ncol=n.samp, nrow=n.taxa)
   for(i in 1:n.taxa){
     abn.mat[i, ]=c(rpois(n.samp.grp1, temp.grp1[i]), rpois(n.samp.grp2, temp.grp2[i]))
@@ -307,7 +305,7 @@ abn.tab.gen3=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   abn.total=colSums(abn.mat)
   names(abn.total)=paste0("sub", seq(n.samp))
   
-  # Number of taxa that are sampled for each subject
+  # Library size
   if(library.size=="large"){
     depth=1/runif(n.samp, 5, 10)
     obs.total=round(max(abn.total)*depth)
@@ -317,13 +315,13 @@ abn.tab.gen3=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   }
   names(obs.total)=paste0("sub", seq(n.samp))
   
-  # Specimen abundance
+  # Absolute abundance in a sample
   set.seed(obs.seed)
   obs.list=lapply(1:n.samp, function(i) 
     phyloseq:::rarefaction_subsample(x=abn.mat[, i], sample.size=obs.total[i]))
   obs.mat=Reduce('cbind', obs.list)
   
-  # Prepare output data sets
+  # Prepare outputs
   abn.dat=data.frame(abn.mat, row.names = NULL)
   rownames(abn.dat)=paste0("taxon", seq(n.taxa))
   colnames(abn.dat)=paste0("sub", seq(n.samp))
@@ -342,8 +340,8 @@ abn.tab.gen3=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   
   test.data=list(temp.dat, abn.dat, obs.dat, effect.size, grp.ind, 
                  diff.ind, out.ind, c.mult, abn.total, obs.total)
-  names(test.data)=c("template", "pop.abn", "obs.abn", "effect.size", "grp", 
-                     "diff.taxa", "outlier", "mult", "abn.total", "obs.total")
+  names(test.data)=c("mean.eco.abn", "eco.abn", "obs.abn", "effect.size", "grp", 
+                     "diff.taxa", "outlier", "mult", "micro.load", "lib.size")
   return(test.data)
 }
 ```
@@ -353,7 +351,7 @@ abn.tab.gen3=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
 ## 2.1 Simulation Settings
 
 ```{r, message=FALSE, warning=FALSE, comment=NA}
-# The number of taxa, sampling depth, and sample size
+# The number of taxa, library size, and sample size
 n.taxa=1000; library.size="small"; n.samp=c("20_30", "50_50")
 
 # The proportion of differentially abundant taxa
@@ -363,7 +361,7 @@ prop.diff=c(0.05, 0.15, 0.25)
 iterNum=100
 abn.seed=seq(iterNum)
 
-# Define the simulation parameters combinations
+# Define the simulation parameters
 simparams=expand.grid(n.taxa, n.samp, prop.diff, abn.seed, library.size)
 colnames(simparams)=c("n.taxa", "n.samp", "prop.diff", "abn.seed", "library.size")
 simparams=simparams%>%mutate(obs.seed=abn.seed+1)
@@ -378,6 +376,7 @@ simparamslabels=c("n.taxa", "n.samp.grp1", "n.samp.grp2","prop.diff",
 ## 2.2 ANCOM-BC
 
 ```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
+source("ancom_bc_v1.0.R")
 library(doParallel)
 library(foreach)
 
@@ -387,7 +386,7 @@ registerDoParallel(myCluster)
 
 start_time <- Sys.time()
 simlist=foreach(i = simparams.list, .combine = 'cbind') %dopar% {
-  # i = simparams.list[1]
+  # i = simparams.list[[1]]
   print(i)
   params = strsplit(i, "_")[[1]]
   names(params) <- simparamslabels
@@ -409,9 +408,10 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %dopar% {
                   group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
   
   # Pre-processing
-  feature.table=obs.abn; sample.var="Sample.ID"; group.var="group"; pre.cut=0.90; neg.lb=FALSE
+  feature.table=obs.abn; sample.var="Sample.ID"; group.var="group"; 
+  zero.cut=0.90; lib.cut=1000; neg.lb=FALSE
   pre.process=feature_table_pre_process(feature.table, meta.data, sample.var, 
-                                        group.var, pre.cut, neg.lb)
+                                        group.var, zero.cut, lib.cut, neg.lb)
   feature.table=pre.process$feature.table
   group.name=pre.process$group.name
   group.ind=pre.process$group.ind
@@ -419,11 +419,11 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %dopar% {
   
   # Paras for ANCOM-BC
   grp.name=group.name; grp.ind=group.ind; adj.method="bonferroni"
-  tol.EM=1e-5; max.iterNum=100; alpha=0.05
+  tol.EM=1e-5; max.iterNum=100; perNum = 1000; alpha=0.05
   
   # Run ANCOM-BC
   suppressWarnings(out <- try(ANCOM_BC(feature.table, grp.name, grp.ind, struc.zero,
-                                       adj.method, tol.EM, max.iterNum, alpha), 
+                                       adj.method, tol.EM, max.iterNum, perNum, alpha), 
                               silent = TRUE))
   if (inherits(out, "try-error")) {
     FDR=NA; power=NA
@@ -445,12 +445,13 @@ end_time <- Sys.time()
 end_time - start_time
 
 stopCluster(myCluster)
-write_csv(simlist, "fdr_power_ancom_bc_large.csv")
+write_csv(data.frame(simlist), "fdr_power_ancom_bc_large.csv")
 ```
 
 ## 2.3 ANCOM
 
 ```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
+source("ancom_simple.R")
 library(doParallel)
 library(foreach)
 
@@ -460,7 +461,7 @@ registerDoParallel(myCluster)
 
 start_time <- Sys.time()
 simlist=foreach(i = simparams.list, .combine = 'cbind') %dopar% {
-  # i = simparams.list[1]
+  # i = simparams.list[[1]]
   print(i)
   params = strsplit(i, "_")[[1]]
   names(params) <- simparamslabels
@@ -484,7 +485,7 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %dopar% {
   # Pre-processing
   pre.process=feature_table_pre_process(feature.table.origin, meta.data, 
                                         sample.var="Sample.ID", group.var="group",
-                                        pre.cut=0.90, neg.lb = FALSE)
+                                        zero.cut=0.90, lib.cut=1000, neg.lb = FALSE)
   struc.zero=pre.process$structure.zeros
   num.struc.zero=apply(struc.zero, 1, sum)
   feature.table=pre.process$feature.table
@@ -518,7 +519,7 @@ end_time <- Sys.time()
 end_time - start_time
 
 stopCluster(myCluster)
-write_csv(simlist, "fdr_power_ancom_large.csv")
+write_csv(data.frame(simlist), "fdr_power_ancom_large.csv")
 ```
 
 ## 2.4 DESeq2
@@ -596,7 +597,7 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %do% {
 end_time <- Sys.time()
 end_time - start_time
 
-write_csv(simlist, "fdr_power_deseq2_large.csv")
+write_csv(data.frame(simlist), "fdr_power_deseq2_large.csv")
 ```
 
 ## 2.5 edgeR
@@ -664,10 +665,10 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %do% {
 end_time <- Sys.time()
 end_time - start_time
 
-write_csv(simlist, "fdr_power_edger_large.csv")
+write_csv(data.frame(simlist), "fdr_power_edger_large.csv")
 ```
 
-## 2.6 metagenomeSeq: Zero-inflated log-normal mixture model
+## 2.6 metagenomeSeq: Zero-inflated log-normal mixture model (ZILG)
 
 ```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
 library(metagenomeSeq)
@@ -676,7 +677,7 @@ library(foreach)
 
 start_time <- Sys.time()
 simlist=foreach(i = simparams.list, .combine = 'cbind') %do% {
-  # i=simparams.list[[665]]
+  # i=simparams.list[[1]]
   print(i)
   params = strsplit(i, "_")[[1]]
   names(params) <- simparamslabels
@@ -739,10 +740,10 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %do% {
 end_time <- Sys.time()
 end_time - start_time
 
-write_csv(simlist, "fdr_power_zilg_large.csv")
+write_csv(data.frame(simlist), "fdr_power_zilg_large.csv")
 ```
 
-## 2.7 metagenomeSeq: Zero-inflated gaussian mixture model
+## 2.7 metagenomeSeq: Zero-inflated gaussian mixture model (ZIG)
 
 ```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
 library(metagenomeSeq)
@@ -815,7 +816,7 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %do% {
 end_time <- Sys.time()
 end_time - start_time
 
-write_csv(simlist, "fdr_power_zig_large.csv")
+write_csv(data.frame(simlist), "fdr_power_zig_large.csv")
 ```
 
 ## 2.8 Wilcoxon rank-sum test: Unnormalized
@@ -871,7 +872,7 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %do% {
 end_time <- Sys.time()
 end_time - start_time
 
-write_csv(simlist, "fdr_power_wilcox_un_large.csv")
+write_csv(data.frame(simlist), "fdr_power_wilcox_un_large.csv")
 ```
 
 ## 2.9 Wilcoxon rank-sum test: TSS
@@ -928,7 +929,7 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %do% {
 end_time <- Sys.time()
 end_time - start_time
 
-write_csv(simlist, "fdr_power_wilcox_tss_large.csv")
+write_csv(data.frame(simlist), "fdr_power_wilcox_tss_large.csv")
 ```
 
 # 3. FDR and Power with the Presence of Large Variable Sampling Fractions

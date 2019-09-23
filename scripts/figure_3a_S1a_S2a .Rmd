@@ -22,7 +22,8 @@ gg_color_hue=function(n){
   hcl(h = hues, l = 65, c = 100)[1:n]
 }
 
-source("ANCOM-BC.R")
+source("ancom_bc_v1.0.R")
+source("sim_data_poi_gam_two_grp.R")
 ```
 
 # 1. Generate Simulation Data
@@ -63,14 +64,14 @@ abn.tab.gen1=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   diff3.ind=sample(which(diff.ind==0), struc.zero.prop*length(which(diff.ind==0)), replace = FALSE)
   diff.ind[diff3.ind]=-1
   
-  # Signal size
+  # Effect size
   effect.size=rep(1, n.taxa)
   effect.size[diff1.ind]=runif(length(diff1.ind), 1, 10)
   effect.size[diff2.ind]=runif(length(diff2.ind), 0.1, 1)
   effect.size[diff3.ind]=0
   names(effect.size)=paste0("taxon", seq(n.taxa))
   
-  # Abundance template
+  # Mean absolute abundance in the ecosystem
   temp.grp1=round(lambda*effect.size)
   temp.grp2=round(lambda)
   for (i in which(effect.size!=1)) {
@@ -79,7 +80,7 @@ abn.tab.gen1=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   temp.dat=data.frame(temp.grp1, temp.grp2, effect.size)
   rownames(temp.dat)=paste0("taxon", seq(n.taxa))
   
-  # Abundance table in the ecosystem
+  # Absolute abundance in the ecosystem
   abn.mat=matrix(0, ncol=n.samp, nrow=n.taxa)
   for(i in 1:n.taxa){
     abn.mat[i, ]=c(rpois(n.samp.grp1, temp.grp1[i]), rpois(n.samp.grp2, temp.grp2[i]))
@@ -92,7 +93,7 @@ abn.tab.gen1=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   abn.total=colSums(abn.mat)
   names(abn.total)=paste0("sub", seq(n.samp))
   
-  # Number of taxa that are sampled for each subject
+  # Library size
   if(library.size=="large"){
     depth=1/runif(n.samp, 5, 10)
     obs.total=round(max(abn.total)*depth)
@@ -102,13 +103,13 @@ abn.tab.gen1=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   }
   names(obs.total)=paste0("sub", seq(n.samp))
   
-  # Specimen abundance
+  # Absolute abundance in a sample
   set.seed(obs.seed)
   obs.list=lapply(1:n.samp, function(i) 
     phyloseq:::rarefaction_subsample(x=abn.mat[, i], sample.size=obs.total[i]))
   obs.mat=Reduce('cbind', obs.list)
   
-  # Prepare output data sets
+  # Prepare outputs
   abn.dat=data.frame(abn.mat, row.names = NULL)
   rownames(abn.dat)=paste0("taxon", seq(n.taxa))
   colnames(abn.dat)=paste0("sub", seq(n.samp))
@@ -127,8 +128,8 @@ abn.tab.gen1=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   
   test.data=list(temp.dat, abn.dat, obs.dat, effect.size, grp.ind, 
                  diff.ind, out.ind, c.mult, abn.total, obs.total)
-  names(test.data)=c("template", "pop.abn", "obs.abn", "effect.size", "grp", 
-                     "diff.taxa", "outlier", "mult", "abn.total", "obs.total")
+  names(test.data)=c("mean.eco.abn", "eco.abn", "obs.abn", "effect.size", "grp", 
+                     "diff.taxa", "outlier", "mult", "micro.load", "lib.size")
   return(test.data)
 }
 ```
@@ -169,14 +170,14 @@ abn.tab.gen2=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   diff3.ind=sample(which(diff.ind==0), struc.zero.prop*length(which(diff.ind==0)), replace = FALSE)
   diff.ind[diff3.ind]=-1
   
-  # Signal size
+  # Effect size
   effect.size=rep(1, n.taxa)
   effect.size[diff1.ind]=runif(length(diff1.ind), 1, 10)
   effect.size[diff2.ind]=runif(length(diff2.ind), 0.1, 1)
   effect.size[diff3.ind]=0
   names(effect.size)=paste0("taxon", seq(n.taxa))
   
-  # Abundance template
+  # Mean absolute abundance in the ecosystem
   temp.grp1=round(lambda*effect.size)
   temp.grp2=round(lambda)
   for (i in which(effect.size!=1)) {
@@ -185,7 +186,7 @@ abn.tab.gen2=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   temp.dat=data.frame(temp.grp1, temp.grp2, effect.size)
   rownames(temp.dat)=paste0("taxon", seq(n.taxa))
   
-  # Abundance table in the ecosystem
+  # Absolute abundance in the ecosystem
   abn.mat=matrix(0, ncol=n.samp, nrow=n.taxa)
   for(i in 1:n.taxa){
     abn.mat[i, ]=c(rpois(n.samp.grp1, temp.grp1[i]), rpois(n.samp.grp2, temp.grp2[i]))
@@ -198,7 +199,7 @@ abn.tab.gen2=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   abn.total=colSums(abn.mat)
   names(abn.total)=paste0("sub", seq(n.samp))
   
-  # Number of taxa that are sampled for each subject
+  # Library size
   if(library.size=="large"){
     depth=1/runif(n.samp, 5, 10)
     obs.total=round(max(abn.total)*depth)
@@ -208,13 +209,13 @@ abn.tab.gen2=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   }
   names(obs.total)=paste0("sub", seq(n.samp))
   
-  # Specimen abundance
+  # Absolute abundance in a sample
   set.seed(obs.seed)
   obs.list=lapply(1:n.samp, function(i) 
     phyloseq:::rarefaction_subsample(x=abn.mat[, i], sample.size=obs.total[i]))
   obs.mat=Reduce('cbind', obs.list)
   
-  # Prepare output data sets
+  # Prepare outputs
   abn.dat=data.frame(abn.mat, row.names = NULL)
   rownames(abn.dat)=paste0("taxon", seq(n.taxa))
   colnames(abn.dat)=paste0("sub", seq(n.samp))
@@ -233,8 +234,8 @@ abn.tab.gen2=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   
   test.data=list(temp.dat, abn.dat, obs.dat, effect.size, grp.ind, 
                  diff.ind, out.ind, c.mult, abn.total, obs.total)
-  names(test.data)=c("template", "pop.abn", "obs.abn", "effect.size", "grp", 
-                     "diff.taxa", "outlier", "mult", "abn.total", "obs.total")
+  names(test.data)=c("mean.eco.abn", "eco.abn", "obs.abn", "effect.size", "grp", 
+                     "diff.taxa", "outlier", "mult", "micro.load", "lib.size")
   return(test.data)
 }
 ```
@@ -271,13 +272,13 @@ abn.tab.gen3=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   szero.pos=sample(which(diff.ind==0), struc.zero.prop*length(which(diff.ind==0)), replace = FALSE)
   diff.ind[szero.pos]=-1
   
-  # Signal size
+  # Effect size
   effect.size=rep(1, n.taxa)
   effect.size[diff.pos]=runif(length(diff.pos), 1, 10)
   effect.size[szero.pos]=0
   names(effect.size)=paste0("taxon", seq(n.taxa))
   
-  # Abundance template
+  # Mean absolute abundance in the ecosystem
   temp.grp1=round(lambda); temp.grp2=round(lambda)
   for (i in diff.pos) {
     rand.ind=sample(c(1, 2), 1)
@@ -298,7 +299,7 @@ abn.tab.gen3=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   temp.dat=data.frame(temp.grp1, temp.grp2, effect.size)
   rownames(temp.dat)=paste0("taxon", seq(n.taxa))
   
-  # Abundance table in the ecosystem
+  # Absolute abundance in the ecosystem
   abn.mat=matrix(0, ncol=n.samp, nrow=n.taxa)
   for(i in 1:n.taxa){
     abn.mat[i, ]=c(rpois(n.samp.grp1, temp.grp1[i]), rpois(n.samp.grp2, temp.grp2[i]))
@@ -311,7 +312,7 @@ abn.tab.gen3=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   abn.total=colSums(abn.mat)
   names(abn.total)=paste0("sub", seq(n.samp))
   
-  # Number of taxa that are sampled for each subject
+  # Library size
   if(library.size=="large"){
     depth=1/runif(n.samp, 5, 10)
     obs.total=round(max(abn.total)*depth)
@@ -321,13 +322,13 @@ abn.tab.gen3=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   }
   names(obs.total)=paste0("sub", seq(n.samp))
   
-  # Specimen abundance
+  # Absolute abundance in a sample
   set.seed(obs.seed)
   obs.list=lapply(1:n.samp, function(i) 
     phyloseq:::rarefaction_subsample(x=abn.mat[, i], sample.size=obs.total[i]))
   obs.mat=Reduce('cbind', obs.list)
   
-  # Prepare output data sets
+  # Prepare outputs
   abn.dat=data.frame(abn.mat, row.names = NULL)
   rownames(abn.dat)=paste0("taxon", seq(n.taxa))
   colnames(abn.dat)=paste0("sub", seq(n.samp))
@@ -346,8 +347,8 @@ abn.tab.gen3=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
   
   test.data=list(temp.dat, abn.dat, obs.dat, effect.size, grp.ind, 
                  diff.ind, out.ind, c.mult, abn.total, obs.total)
-  names(test.data)=c("template", "pop.abn", "obs.abn", "effect.size", "grp", 
-                     "diff.taxa", "outlier", "mult", "abn.total", "obs.total")
+  names(test.data)=c("mean.eco.abn", "eco.abn", "obs.abn", "effect.size", "grp", 
+                     "diff.taxa", "outlier", "mult", "micro.load", "lib.size")
   return(test.data)
 }
 ```
@@ -356,20 +357,22 @@ abn.tab.gen3=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs
 
 ## 2.1 Run a single simulation dataset
 
-```{r, message=FALSE, warning=FALSE, comment=NA}
-n.taxa=500; n.samp.grp1=30; n.samp.grp2=30; prop.diff=0.25; 
-abn.seed=123; obs.seed=124; library.size="small"
+```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
+n.taxa=500; n.samp.grp1=30; n.samp.grp2=30; low.abn=50; med.abn=200; high.abn=10000
+prop.diff=0.25; abn.seed=123; obs.seed=124; struc.zero.prop=0.2; out.zero.prop=0.05
+var.samp.frac="large"
 
-test.dat=abn.tab.gen1(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs.seed,
-                      struc.zero.prop=0.2, out.zero.prop=0.05, library.size)
+test.dat=abn.tab.gen1(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.abn, prop.diff, 
+                      abn.seed, obs.seed, struc.zero.prop, out.zero.prop, var.samp.frac)
 obs.abn=test.dat$obs.abn
 meta.data=cbind(Sample.ID=paste0("sub", seq(n.samp.grp1+n.samp.grp2)), 
                 group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
 
 # Pre-processing
-feature.table=obs.abn; sample.var="Sample.ID"; group.var="group"; pre.cut=0.90; neg.lb=FALSE
+feature.table=obs.abn; sample.var="Sample.ID"; group.var="group"
+zero.cut=0.90; lib.cut=1000; neg.lb=FALSE
 pre.process=feature_table_pre_process(feature.table, meta.data, sample.var, 
-                                      group.var, pre.cut, neg.lb)
+                                      group.var, zero.cut, lib.cut, neg.lb)
 feature.table=pre.process$feature.table
 group.name=pre.process$group.name
 group.ind=pre.process$group.ind
@@ -377,14 +380,14 @@ struc.zero=pre.process$structure.zeros
 
 # Paras for ANCOM-BC
 grp.name=group.name; grp.ind=group.ind; adj.method="bonferroni"
-tol.EM=1e-5; max.iterNum=100; alpha=0.05
+tol.EM=1e-5; max.iterNum=100; perNum = 1000; alpha=0.05
 out<-try(ANCOM_BC(feature.table, grp.name, grp.ind, struc.zero, adj.method, 
-                  tol.EM, max.iterNum, alpha), silent = T)
+                  tol.EM, max.iterNum, perNum, alpha), silent = T)
 
 # ANCOM.BC: Two-stage bias correction
 if (inherits(out, "try-error")){
   ANCOM.BC=rep(NA, n.samp.grp1+n.samp.grp2)
-}else{ANCOM.BC=out$d+rep(c(out$bias.est, 0), sapply(group.ind, length))}
+}else{ANCOM.BC=out$d}
 sub.keep=match(names(ANCOM.BC), colnames(obs.abn))
 
 # True value
@@ -442,11 +445,13 @@ norm.df=norm.df%>%mutate(D.ANCOM.BC = ACTUAL - ANCOM.BC,
                          CD.CSS = scale(D.CSS, scale = F), CD.MED = scale(D.MED, scale = F),
                          CD.UQ = scale(D.UQ, scale = F), CD.TMM = scale(D.TMM, scale = F),
                          CD.TSS = scale(D.TSS, scale = F))
+write.csv(norm.df, file = "../data/sim_norm/norm_large.csv", row.names = F)
 ```
 
 ## 2.2 Fig. 3a
 
 ```{r, message=FALSE, warning=FALSE, comment=NA}
+norm.df = read_csv("../data/sim_norm/norm_large.csv")
 p.df = norm.df%>%gather(key = "method", value = "value", CD.ANCOM.BC:CD.TSS)
 p.df$method = factor(p.df$method, 
                      levels = c("CD.ANCOM.BC", "CD.CSS", "CD.MED", "CD.UQ", "CD.TMM", "CD.TSS"))
@@ -457,7 +462,7 @@ p=ggplot(p.df, aes(x=method, y=value, color=method))+
                      label=c("ANCOM-BC", "CSS", "MED", "UQ", "TMM", "TSS"),
                      values = gg_color_hue(6))+
   scale_shape_manual(name=NULL, values=c(1, 17))+
-  labs(x="", y="Centered Difference")+
+  labs(x="", y="Centered Deviance")+
   theme_bw()+
   theme(panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
@@ -474,20 +479,22 @@ ggsave("../figures/Figure 3a.jpeg", width=6.25, height=5, units='in', dpi = 300)
 
 ## 3.1 Run a single simulation dataset
 
-```{r, message=FALSE, warning=FALSE, comment=NA}
-n.taxa=500; n.samp.grp1=30; n.samp.grp2=30; prop.diff=0.25; 
-abn.seed=123; obs.seed=124; library.size="small"
+```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
+n.taxa=500; n.samp.grp1=30; n.samp.grp2=30; low.abn=50; med.abn=200; high.abn=10000
+prop.diff=0.25; abn.seed=123; obs.seed=124; struc.zero.prop=0.2; out.zero.prop=0.05
+var.samp.frac="moderate"
 
-test.dat=abn.tab.gen2(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs.seed,
-                      struc.zero.prop=0.2, out.zero.prop=0.05, library.size)
+test.dat=abn.tab.gen1(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.abn, prop.diff, 
+                      abn.seed, obs.seed, struc.zero.prop, out.zero.prop, var.samp.frac)
 obs.abn=test.dat$obs.abn
 meta.data=cbind(Sample.ID=paste0("sub", seq(n.samp.grp1+n.samp.grp2)), 
                 group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
 
 # Pre-processing
-feature.table=obs.abn; sample.var="Sample.ID"; group.var="group"; pre.cut=0.90; neg.lb=FALSE
+feature.table=obs.abn; sample.var="Sample.ID"; group.var="group"
+zero.cut=0.90; lib.cut=1000; neg.lb=FALSE
 pre.process=feature_table_pre_process(feature.table, meta.data, sample.var, 
-                                      group.var, pre.cut, neg.lb)
+                                      group.var, zero.cut, lib.cut, neg.lb)
 feature.table=pre.process$feature.table
 group.name=pre.process$group.name
 group.ind=pre.process$group.ind
@@ -495,14 +502,14 @@ struc.zero=pre.process$structure.zeros
 
 # Paras for ANCOM-BC
 grp.name=group.name; grp.ind=group.ind; adj.method="bonferroni"
-tol.EM=1e-5; max.iterNum=100; alpha=0.05
+tol.EM=1e-5; max.iterNum=100; perNum = 1000; alpha=0.05
 out<-try(ANCOM_BC(feature.table, grp.name, grp.ind, struc.zero, adj.method, 
-                  tol.EM, max.iterNum, alpha), silent = T)
+                  tol.EM, max.iterNum, perNum, alpha), silent = T)
 
 # ANCOM.BC: Two-stage bias correction
 if (inherits(out, "try-error")){
   ANCOM.BC=rep(NA, n.samp.grp1+n.samp.grp2)
-}else{ANCOM.BC=out$d+rep(c(out$bias.est, 0), sapply(group.ind, length))}
+}else{ANCOM.BC=out$d}
 sub.keep=match(names(ANCOM.BC), colnames(obs.abn))
 
 # True value
@@ -560,11 +567,13 @@ norm.df=norm.df%>%mutate(D.ANCOM.BC = ACTUAL - ANCOM.BC,
                          CD.CSS = scale(D.CSS, scale = F), CD.MED = scale(D.MED, scale = F),
                          CD.UQ = scale(D.UQ, scale = F), CD.TMM = scale(D.TMM, scale = F),
                          CD.TSS = scale(D.TSS, scale = F))
+write.csv(norm.df, file = "../data/sim_norm/norm_moderate.csv")
 ```
 
 ## 3.2 Fig. S1a
 
 ```{r, message=FALSE, warning=FALSE, comment=NA}
+norm.df = read_csv("../data/sim_norm/norm_moderate.csv")
 p.df = norm.df%>%gather(key = "method", value = "value", CD.ANCOM.BC:CD.TSS)
 p.df$method = factor(p.df$method,
                      levels = c("CD.ANCOM.BC", "CD.CSS", "CD.MED", "CD.UQ", "CD.TMM", "CD.TSS"))
@@ -592,20 +601,22 @@ ggsave("../figures/Figure S1a.jpeg", width=6.25, height=5, units='in', dpi = 300
 
 ## 4.1 Run a single simulation dataset
 
-```{r, message=FALSE, warning=FALSE, comment=NA}
-n.taxa=500; n.samp.grp1=30; n.samp.grp2=30; prop.diff=0.25; 
-abn.seed=123; obs.seed=124; library.size="small"
+```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
+n.taxa=500; n.samp.grp1=30; n.samp.grp2=30; low.abn=50; med.abn=200; high.abn=10000
+prop.diff=0.25; abn.seed=123; obs.seed=124; struc.zero.prop=0.2; out.zero.prop=0.05
+var.samp.frac="small"
 
-test.dat=abn.tab.gen3(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs.seed,
-                      struc.zero.prop=0.2, out.zero.prop=0.05, library.size)
+test.dat=abn.tab.gen1(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.abn, prop.diff, 
+                      abn.seed, obs.seed, struc.zero.prop, out.zero.prop, var.samp.frac)
 obs.abn=test.dat$obs.abn
 meta.data=cbind(Sample.ID=paste0("sub", seq(n.samp.grp1+n.samp.grp2)), 
                 group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
 
 # Pre-processing
-feature.table=obs.abn; sample.var="Sample.ID"; group.var="group"; pre.cut=0.90; neg.lb=FALSE
+feature.table=obs.abn; sample.var="Sample.ID"; group.var="group"
+zero.cut=0.90; lib.cut=1000; neg.lb=FALSE
 pre.process=feature_table_pre_process(feature.table, meta.data, sample.var, 
-                                      group.var, pre.cut, neg.lb)
+                                      group.var, zero.cut, lib.cut, neg.lb)
 feature.table=pre.process$feature.table
 group.name=pre.process$group.name
 group.ind=pre.process$group.ind
@@ -613,14 +624,14 @@ struc.zero=pre.process$structure.zeros
 
 # Paras for ANCOM-BC
 grp.name=group.name; grp.ind=group.ind; adj.method="bonferroni"
-tol.EM=1e-5; max.iterNum=100; alpha=0.05
+tol.EM=1e-5; max.iterNum=100; perNum = 1000; alpha=0.05
 out<-try(ANCOM_BC(feature.table, grp.name, grp.ind, struc.zero, adj.method, 
-                  tol.EM, max.iterNum, alpha), silent = T)
+                  tol.EM, max.iterNum, perNum, alpha), silent = T)
 
 # ANCOM.BC: Two-stage bias correction
 if (inherits(out, "try-error")){
   ANCOM.BC=rep(NA, n.samp.grp1+n.samp.grp2)
-}else{ANCOM.BC=out$d+rep(c(out$bias.est, 0), sapply(group.ind, length))}
+}else{ANCOM.BC=out$d}
 sub.keep=match(names(ANCOM.BC), colnames(obs.abn))
 
 # True value
@@ -678,11 +689,13 @@ norm.df=norm.df%>%mutate(D.ANCOM.BC = ACTUAL - ANCOM.BC,
                          CD.CSS = scale(D.CSS, scale = F), CD.MED = scale(D.MED, scale = F),
                          CD.UQ = scale(D.UQ, scale = F), CD.TMM = scale(D.TMM, scale = F),
                          CD.TSS = scale(D.TSS, scale = F))
+write.csv(norm.df, file = "../data/sim_norm/norm_small.csv")
 ```
 
 ## 4.2 Fig. S2a
 
 ```{r, message=FALSE, warning=FALSE, comment=NA}
+norm.df = read_csv("../data/sim_norm/norm_small.csv")
 p.df = norm.df%>%gather(key = "method", value = "value", CD.ANCOM.BC:CD.TSS)
 p.df$method = factor(p.df$method, 
                      levels = c("CD.ANCOM.BC", "CD.CSS", "CD.MED", "CD.UQ", "CD.TMM", "CD.TSS"))

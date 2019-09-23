@@ -24,8 +24,8 @@ panderOptions('table.caption.prefix', NULL)
 panderOptions('table.continues', NULL)
 panderOptions('table.emphasize.rownames', FALSE)
 
-source("ANCOM-BC.R")
-source("ANCOM.R")
+source("ancom_bc_v1.0.R")
+source("ancom_v1.0.R")
 ```
 
 # 1. Read in OTU table and meta data
@@ -85,8 +85,10 @@ write_tsv(obs.abn%>%rownames_to_column("genus"), "../data/songbird/otu_ma_us.txt
 ## 2.2 Pre-Processing
 
 ```{r, message=FALSE, warning=FALSE, comment=NA}
-feature.table=obs.abn; sample.var="Sample.ID"; group.var="country"; pre.cut=0.90; neg.lb=TRUE
-pre.process=feature_table_pre_process(feature.table, meta.data, sample.var, group.var, pre.cut, neg.lb)
+feature.table=obs.abn; sample.var="Sample.ID"; group.var="country"; 
+zero.cut=0.90; lib.cut=1000; neg.lb=TRUE
+pre.process=feature_table_pre_process(feature.table, meta.data, sample.var, 
+                                      group.var, zero.cut, lib.cut, neg.lb)
 feature.table=pre.process$feature.table
 library.size=pre.process$library.size
 group.name=pre.process$group.name
@@ -102,30 +104,30 @@ s1=rownames(feature.table)[which(num.struc.zero==1)]
 ```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
 # Paras for ANCOM-BC
 grp.name=group.name; grp.ind=group.ind; adj.method="bonferroni"
-tol.EM=1e-5; max.iterNum=100; alpha=0.05
+tol.EM=1e-5; max.iterNum=100; perNum=1000; alpha=0.05
 
 # Run ANCOM-BC
 start_time <- Sys.time()
 out=ANCOM_BC(feature.table, grp.name, grp.ind, struc.zero, adj.method, 
-              tol.EM, max.iterNum, alpha)
+              tol.EM, max.iterNum, perNum, alpha)
 end_time <- Sys.time()
 end_time - start_time
 
 # Test result
 res.ANCOM_BC=data.frame(genus=rownames(out$feature.table), out$res, 
                         struc.zero[rownames(out$feature.table), ], 
-                        row.names = NULL, stringsAsFactors=FALSE)
+                        row.names = NULL, stringsAsFactors=FALSE, check.names = FALSE)
 res.ANCOM_BC$phylum=sapply(res.ANCOM_BC$genus, function(x) strsplit(x, ".g")[[1]][1])
 res.ANCOM_BC=res.ANCOM_BC%>%transmute(phylum, genus,
-                                      `mean.difference (MA - US)` = mean.difference..MA...US.,
-                                      se, `effect.size (MA - US)`=effect.size..MA...US., 
+                                      `mean.difference (MA - US)` = -`mean.difference (US - MA)`,
+                                      `se (MA - US)` = `se (US - MA)`, 
+                                      `effect.size (MA - US)` = ifelse(is.infinite(W),  Inf, -W), 
                                       p.val, q.val, diff.abn, 
-                                      struc.zero.MA=Structural.Zero.in.MA, 
-                                      struc.zero.US=Structural.Zero.in.US)
+                                      `structural.zero (MA)`, `structural.zero (US)`)
 res.ANCOM_BC=res.ANCOM_BC%>%arrange(q.val)
 res.ANCOM_BC.s0=filter(res.ANCOM_BC, genus%in%s0)
 
-write.csv(res.ANCOM_BC, "Output/Real ../data/Genus Level/Taxa_MA vs US/MA vs US_ANCOM-BC_genus_level.csv", row.names = F)
+write.csv(res.ANCOM_BC, "../data/global_gut/ma_us_ancom_bc_genus.csv", row.names = F)
 ```
 
 ## 2.4 ANCOM
@@ -150,7 +152,7 @@ res.ANCOM[match(res.W$W.taxa$otu.names, res.ANCOM$otu.names), ]=res.W$W.taxa
 res.ANCOM=res.ANCOM%>%arrange(desc(detected_0.7))
 res.ANCOM.s0=res.ANCOM[match(s0, res.ANCOM$otu.names), ]
 
-write.csv(res.ANCOM, "Output/Real ../data/Genus Level/Taxa_MA vs US/MA vs US_ANCOM_genus_level.csv", row.names = F)
+write.csv(res.ANCOM, "../data/global_gut/ma_us_ancom_genus.csv", row.names = F)
 ```
 
 ## 2.5 Venn diagram
@@ -196,8 +198,10 @@ write_tsv(obs.abn%>%rownames_to_column("genus"), "../data/songbird/otu_ven_us.tx
 ## 3.2 Pre-Processing
 
 ```{r, message=FALSE, warning=FALSE, comment=NA}
-feature.table=obs.abn; sample.var="Sample.ID"; group.var="country"; pre.cut=0.90; neg.lb=TRUE
-pre.process=feature_table_pre_process(feature.table, meta.data, sample.var, group.var, pre.cut, neg.lb)
+feature.table=obs.abn; sample.var="Sample.ID"; group.var="country"; 
+zero.cut=0.90; lib.cut=1000; neg.lb=TRUE
+pre.process=feature_table_pre_process(feature.table, meta.data, sample.var, 
+                                      group.var, zero.cut, lib.cut, neg.lb)
 feature.table=pre.process$feature.table
 library.size=pre.process$library.size
 group.name=pre.process$group.name
@@ -213,30 +217,25 @@ s1=rownames(feature.table)[which(num.struc.zero==1)]
 ```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
 # Paras for ANCOM-BC
 grp.name=group.name; grp.ind=group.ind; adj.method="bonferroni"
-tol.EM=1e-5; max.iterNum=100; alpha=0.05
+tol.EM=1e-5; max.iterNum=100; perNum=1000; alpha=0.05
 
 # Run ANCOM-BC
 start_time <- Sys.time()
 out=ANCOM_BC(feature.table, grp.name, grp.ind, struc.zero, adj.method, 
-              tol.EM, max.iterNum, alpha)
+              tol.EM, max.iterNum, perNum, alpha)
 end_time <- Sys.time()
 end_time - start_time
 
 # Test result
 res.ANCOM_BC=data.frame(genus=rownames(out$feature.table), out$res, 
                         struc.zero[rownames(out$feature.table), ], 
-                        row.names = NULL, stringsAsFactors=FALSE)
+                        row.names = NULL, stringsAsFactors=FALSE, check.names = FALSE)
 res.ANCOM_BC$phylum=sapply(res.ANCOM_BC$genus, function(x) strsplit(x, ".g")[[1]][1])
-res.ANCOM_BC=res.ANCOM_BC%>%transmute(phylum, genus,
-                                      `mean.difference (VEN - US)` = -mean.difference..US...VEN.,
-                                      se, `effect.size (VEN - US)` = ifelse(is.infinite(effect.size..US...VEN.), Inf, -effect.size..US...VEN.), 
-                                      p.val, q.val, diff.abn, 
-                                      struc.zero.VEN=Structural.Zero.in.VEN, 
-                                      struc.zero.US=Structural.Zero.in.US)
+res.ANCOM_BC=res.ANCOM_BC%>%dplyr::select(phylum, everything())
 res.ANCOM_BC=res.ANCOM_BC%>%arrange(q.val)
 res.ANCOM_BC.s0=filter(res.ANCOM_BC, genus%in%s0)
 
-write.csv(res.ANCOM_BC, "Output/Real ../data/Genus Level/Taxa_VEN vs US/VEN vs US_ANCOM-BC_genus_level.csv", row.names = F)
+write.csv(res.ANCOM_BC, "../data/global_gut/ven_us_ancom_bc_genus.csv", row.names = F)
 ```
 
 ## 3.4 ANCOM
@@ -262,13 +261,12 @@ res.ANCOM=res.ANCOM%>%arrange(desc(detected_0.7))
 res.ANCOM.s0=res.ANCOM[match(s0, res.ANCOM$otu.names), ]
 
 # Tabulation
-# res.compare=cbind(select(res.ANCOM_BC.s0, genus, diff.abn), W=res.ANCOM.s0$detected_0.7)
 res.compare=left_join(res.ANCOM_BC, res.ANCOM,  by = c("genus" = "otu.names"))
 tab.ven.us=xtabs(~ diff.abn + detected_0.7, data=res.compare)
 tab.ven.us=addmargins(tab.ven.us)
 pander(tab.ven.us)
 
-write.csv(res.ANCOM, "Output/Real ../data/Genus Level/Taxa_VEN vs US/VEN vs US_ANCOM_genus_level.csv", row.names = F)
+write.csv(res.ANCOM, "../data/global_gut/ven_us_ancom_genus.cs", row.names = F)
 ```
 
 ## 3.5 Venn diagram
@@ -314,8 +312,10 @@ write_tsv(obs.abn%>%rownames_to_column("genus"), "../data/songbird/otu_ma_ven.tx
 ## 4.2 Pre-Processing
 
 ```{r, message=FALSE, warning=FALSE, comment=NA}
-feature.table=obs.abn; sample.var="Sample.ID"; group.var="country"; pre.cut=0.90; neg.lb=TRUE
-pre.process=feature_table_pre_process(feature.table, meta.data, sample.var, group.var, pre.cut, neg.lb)
+feature.table=obs.abn; sample.var="Sample.ID"; group.var="country"; 
+zero.cut=0.90; lib.cut=1000; neg.lb=TRUE
+pre.process=feature_table_pre_process(feature.table, meta.data, sample.var, 
+                                      group.var, zero.cut, lib.cut, neg.lb)
 feature.table=pre.process$feature.table
 library.size=pre.process$library.size
 group.name=pre.process$group.name
@@ -331,30 +331,30 @@ s1=rownames(feature.table)[which(num.struc.zero==1)]
 ```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
 # Paras for ANCOM-BC
 grp.name=group.name; grp.ind=group.ind; adj.method="bonferroni"
-tol.EM=1e-5; max.iterNum=100; alpha=0.05
+tol.EM=1e-5; max.iterNum=100; perNum=1000; alpha=0.05
 
 # Run ANCOM-BC
 start_time <- Sys.time()
 out=ANCOM_BC(feature.table, grp.name, grp.ind, struc.zero, adj.method, 
-              tol.EM, max.iterNum, alpha)
+              tol.EM, max.iterNum, perNum, alpha)
 end_time <- Sys.time()
 end_time - start_time
 
 # Test result
 res.ANCOM_BC=data.frame(genus=rownames(out$feature.table), out$res, 
                         struc.zero[rownames(out$feature.table), ], 
-                        row.names = NULL, stringsAsFactors=FALSE)
+                        row.names = NULL, stringsAsFactors=FALSE, check.names = FALSE)
 res.ANCOM_BC$phylum=sapply(res.ANCOM_BC$genus, function(x) strsplit(x, ".g")[[1]][1])
 res.ANCOM_BC=res.ANCOM_BC%>%transmute(phylum, genus,
-                                      `mean.difference (MA - VEN)` = mean.difference..MA...VEN.,
-                                      se, `effect.size (MA - VEN)`=effect.size..MA...VEN., 
+                                      `mean.difference (MA - VEN)` = -`mean.difference (VEN - MA)`,
+                                      `se (MA - VEN)` = `se (VEN - MA)`, 
+                                      `effect.size (MA - VEN)` = ifelse(is.infinite(W),  Inf, -W), 
                                       p.val, q.val, diff.abn, 
-                                      struc.zero.MA=Structural.Zero.in.MA, 
-                                      struc.zero.VEN=Structural.Zero.in.VEN)
+                                      `structural.zero (MA)`, `structural.zero (VEN)`)
 res.ANCOM_BC=res.ANCOM_BC%>%arrange(q.val)
 res.ANCOM_BC.s0=filter(res.ANCOM_BC, genus%in%s0)
 
-write.csv(res.ANCOM_BC, "Output/Real ../data/Genus Level/Taxa_MA vs VEN/MA vs VEN_ANCOM-BC_genus_level.csv", row.names = F)
+write.csv(res.ANCOM_BC, "../data/global_gut/ma_ven_ancom_bc_genus.csv", row.names = F)
 ```
 
 ## 4.4 ANCOM
@@ -380,20 +380,19 @@ res.ANCOM=res.ANCOM%>%arrange(desc(detected_0.7))
 res.ANCOM.s0=res.ANCOM[match(s0, res.ANCOM$otu.names), ]
 
 # Tabulation
-# res.compare=cbind(select(res.ANCOM_BC.s0, genus, diff.abn), W=res.ANCOM.s0$detected_0.7)
 res.compare=left_join(res.ANCOM_BC, res.ANCOM,  by = c("genus" = "otu.names"))
 tab.ma.ven=xtabs(~ diff.abn + detected_0.7, data=res.compare)
 tab.ma.ven=addmargins(tab.ma.ven)
 pander(tab.ma.ven)
 
-write.csv(res.ANCOM, "Output/Real ../data/Genus Level/Taxa_MA vs VEN/MA vs VEN_ANCOM_genus_level.csv", row.names = F)
+write.csv(res.ANCOM, "../data/global_gut/ma_ven_ancom_genus.csv", row.names = F)
 ```
 
 ## 4.5 Venn diagram
 
 ```{r, message=FALSE, warning=FALSE, comment=NA}
 res.ANCOM_BC = read_csv("../data/global_gut/ma_ven_ancom_bc_genus.csv")
-res.ANCOM = read_csv("../data/global_gut/ma_ven_ancom_genus.csv.csv")
+res.ANCOM = read_csv("../data/global_gut/ma_ven_ancom_genus.csv")
 res.DR = read_tsv("../data/global_gut/ma_ven_dr_genus.tsv")
 res.DR = res.DR%>%arrange(desc(`country[T.VEN]`))
 # Tabulation
@@ -414,12 +413,12 @@ vennDiagram(venn.ma_ven, circle.col = c("red", "blue", "green3"),
 ```{r, message=FALSE, warning=FALSE, comment=NA}
 # Paras for ANCOM-BC
 grp.name=group.name; grp.ind=group.ind; adj.method="bonferroni"
-tol.EM=1e-5; max.iterNum=100; alpha=0.05
+tol.EM=1e-5; max.iterNum=100; perNum=1000; alpha=0.05
 
 # Run ANCOM-BC
 out=ANCOM_BC(feature.table, grp.name, grp.ind, struc.zero, adj.method, 
-             tol.EM, max.iterNum, alpha)
-ancom.bc=out$d+rep(c(out$bias.est, 0), sapply(group.ind, length))
+             tol.EM, max.iterNum, perNum, alpha)
+ancom.bc=out$d
 
 y.ancom.bc=t(t(log(out$feature.table+1))-ancom.bc)
 y.ancom.bc=y.ancom.bc+abs(min(y.ancom.bc, na.rm = T))
@@ -509,12 +508,55 @@ fit.tss=isoMDS(dist.tss, k=2)
 mds.xy.tss=data.frame(method = "TSS", fit.tss$points, country = meta.data$country)
 ```
 
+## 4.7 Between Sum of Squares
+
+```{r, message=FALSE, warning=FALSE, comment=NA}
+ss_compute=function(x){
+  x=as.matrix(x)
+  ss=sum(t(t(x)-colMeans(x, na.rm = T))^2, na.rm = T)
+  return(ss)
+}
+
+mds.xy.ancom.bc=mds.xy.ancom.bc%>%mutate(scale_x1=scale(X1), scale_x2=scale(X2))
+mds.xy.css=mds.xy.css%>%mutate(scale_x1=scale(X1), scale_x2=scale(X2))
+mds.xy.med=mds.xy.med%>%mutate(scale_x1=scale(X1), scale_x2=scale(X2))
+mds.xy.uq=mds.xy.uq%>%mutate(scale_x1=scale(X1), scale_x2=scale(X2))
+mds.xy.tmm=mds.xy.tmm%>%mutate(scale_x1=scale(X1), scale_x2=scale(X2))
+mds.xy.tss=mds.xy.tss%>%mutate(scale_x1=scale(X1), scale_x2=scale(X2))
+
+mds.list=list(mds.xy.ancom.bc, mds.xy.css, mds.xy.med, mds.xy.uq, mds.xy.tmm, mds.xy.tss)
+ss.ratio.df=data.frame(method=c("ANCOM-BC", "CSS", "MED", "UQ", "TMM", "TSS"), ss.ratio = NA)
+for (i in 1:length(mds.list)) {
+  method=mds.list[[i]]
+  sst=ss_compute(method%>%dplyr::select(scale_x1, scale_x2))
+  ssw=ss_compute(method%>%filter(country=="MA")%>%dplyr::select(scale_x1, scale_x2))+
+    ss_compute(method%>%filter(country=="VEN")%>%dplyr::select(scale_x1, scale_x2))
+  ssb=sst-ssw
+  ss.ratio=ssb/ssw
+  ss.ratio.df[i, "ss.ratio"]=ss.ratio
+}
+
+mds.list=list(mds.xy.ancom.bc, mds.xy.css, mds.xy.med, mds.xy.uq, mds.xy.tmm, mds.xy.tss)
+ss.ratio.df=data.frame(method=c("ANCOM-BC", "CSS", "MED", "UQ", "TMM", "TSS"), ss.ratio = NA)
+for (i in 1:length(mds.list)) {
+  method=mds.list[[i]]
+  sst=ss_compute(method%>%dplyr::select(X1, X2))
+  ssw=ss_compute(method%>%filter(country=="MA")%>%dplyr::select(X1, X2))+
+    ss_compute(method%>%filter(country=="VEN")%>%dplyr::select(X1, X2))
+  ssb=sst-ssw
+  ss.ratio=ssb/ssw
+  ss.ratio.df[i, "ss.ratio"]=ss.ratio
+}
+```
+
 # 5. Fig. 4a
 
 ```{r, message=FALSE, warning=FALSE, comment=NA}
+txt.df = data.frame(X1=0.2, X2=0.25, ssb.df)
+txt.df$ssb = paste0("SSB = ", round(txt.df$ssb, 0))
 p.df = rbind(mds.xy.ancom.bc, mds.xy.css, mds.xy.med, mds.xy.uq, mds.xy.tmm, mds.xy.tss)
-p=ggplot(p.df, aes(X1, X2, color = country)) + geom_point(size = 0.2) + 
-  facet_wrap(.~method, nrow = 2)+
+p=ggplot(p.df, aes(X1, X2, color = country)) + geom_point(size = 0.3) + 
+  facet_wrap(.~method, nrow = 2)+scale_y_continuous(limits = c(-0.3, 0.3))+
   labs(x="First NMDS coordinate", y="Second NMDS coordinate")+
   scale_color_discrete(name="", breaks=c("MA", "VEN"), labels = c("Malawi", "Venezuela"))+
   theme_bw()+
@@ -523,7 +565,8 @@ p=ggplot(p.df, aes(X1, X2, color = country)) + geom_point(size = 0.2) +
         panel.grid.minor = element_blank(),
         legend.position = "bottom",
         strip.background = element_rect(fill="white"))+
-  guides(color = guide_legend(override.aes = list(size=3)))
+  guides(color = guide_legend(override.aes = list(size=3)))+
+  geom_text(data = txt.df, mapping = aes(x = X1, y = X2, label = ssb, color = NULL,group= NULL))
 ggarrange(p, labels = "a")
 ggsave("../figures/Figure 4a.pdf", width=6.25, height=5, units='in')
 ggsave("../figures/Figure 4a.jpeg", width=6.25, height=5, units='in', dpi = 300)
