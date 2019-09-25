@@ -72,7 +72,7 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %dopar% {
   struc.zero=pre.process$structure.zeros
   
   # Paras for ANCOM-BC
-  grp.name=group.name; grp.ind=group.ind; adj.method="BH"
+  grp.name=group.name; grp.ind=group.ind; adj.method="bonferroni"
   tol.EM=1e-5; max.iterNum=100; perNum=1000; alpha=0.05
   
   # Run ANCOM-BC

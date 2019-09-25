@@ -1,7 +1,7 @@
 library(tidyverse)
 source("sim_data_poi_gam_two_grp.R")
 source("ancom_bc_v1.0.R")
-source("ancom_two_group.R")
+source("ancom_simple.R")
 
 # The number of taxa, library size, and sample size
 n.taxa=1000; samp.frac.var="small"; n.samp=c("20_30", "50_50")
@@ -50,9 +50,9 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %dopar% {
   
   # Data generation
   low.abn=50; med.abn=200; high.abn=10000; struc.zero.prop=0.20; out.zero.prop=0.05
-  test.dat=abn.tab.gen(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.abn,
-                       prop.diff, abn.seed, obs.seed, struc.zero.prop, out.zero.prop,
-                       samp.frac.var)
+  test.dat=abn.tab.gen1(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.abn,
+                        prop.diff, abn.seed, obs.seed, struc.zero.prop, out.zero.prop,
+                        samp.frac.var)
   meta.data=cbind(Sample.ID=paste0("sub", seq(n.samp.grp1+n.samp.grp2)), 
                   group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
   feature.table.origin=test.dat$obs.abn
@@ -94,4 +94,4 @@ end_time <- Sys.time()
 end_time - start_time
 
 stopCluster(myCluster)
-write_csv(data.frame(simlist), "fdr_power_ancom_large.csv")
+write_csv(data.frame(simlist), "fdr_power_ancom_small.csv")

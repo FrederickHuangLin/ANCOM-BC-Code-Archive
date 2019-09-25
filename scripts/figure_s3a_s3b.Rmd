@@ -11,18 +11,22 @@ rm(list = ls())
 
 library(tidyverse)
 library(microbiome)
-library(phyloseq)
 library(ggpubr)
 library(RColorBrewer)
+library(DT)
 library(pander)
 panderOptions('table.caption.prefix', NULL)
 panderOptions('table.continues', NULL)
 panderOptions('table.emphasize.rownames', FALSE)
+
+source("sim_data_soil.R")
+source("ancom_bc_v1.0.R")
+source("ancom_simple.R")
 ```
 
 # 1. Generate Simulation Data
 
-```{r, message=FALSE, warning=FALSE, comment=NA}
+```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
 data("GlobalPatterns")
 pseq = GlobalPatterns
 # Simulations were evaluated for soil environments
@@ -31,86 +35,6 @@ pseq.subset = subset_samples(pseq, SampleType == "Soil")
 # Prune taxa
 pseq.prune = prune_taxa(taxa_sums(pseq.subset) > 50, pseq.subset)
 template = taxa_sums(pseq.prune)
-
-abn.tab.gen = function(template, n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs.seed,
-                       struc.zero.prop, library.size){
-  # Template for absolute abundance in the ecosystem
-  set.seed(abn.seed)
-  abn.temp = sample(template, n.taxa)
-  taxa.id = names(abn.temp); n.samp = n.samp.grp1 + n.samp.grp2
-
-  # Set which taxa are differentially abundant
-  diff.ind = rep(0, n.taxa)
-  # Group1 is higher than group2
-  diff1.ind = sample(1:n.taxa, floor(n.taxa*prop.diff), replace = FALSE)
-  diff.ind[diff1.ind] = 1
-  # Group2 is higher than group1
-  wt = runif(1, 0, 1)
-  diff2.ind = sample(diff1.ind, wt*length(diff1.ind), replace = FALSE)
-  diff.ind[diff2.ind] = 2
-  # Structural zeros
-  diff3.ind = sample(which(diff.ind == 0), struc.zero.prop * length(which(diff.ind==0)), replace = FALSE)
-  diff.ind[diff3.ind] = -1
-  
-  # effect size
-  effect.size = rep(1, n.taxa)
-  effect.size[diff1.ind] = runif(length(diff1.ind), 1, 10)
-  effect.size[diff2.ind] = runif(length(diff2.ind), 0.1, 1)
-  effect.size[diff3.ind] = 0
-  names(effect.size) = taxa.id
-  
-  # Absolute abundance in the ecosystem
-  abn.grp1 = round(abn.temp * effect.size)
-  abn.grp2 = round(abn.temp)
-  abn.mat = cbind(abn.grp1, abn.grp2)
-  
-  abn.total = colSums(abn.mat)
-  names(abn.total) = c("grp1", "grp2")
-  
-  # Library size
-  if(library.size == "large"){
-    depth = 1/runif(n.samp, 5, 10)
-    obs.total = round(max(abn.total)*depth)
-  }else if(library.size == "small"){
-    depth = 1/sample(c(runif(n.samp, 10, 50), runif(n.samp, 100, 500)), n.samp, replace  =  T)
-    obs.total = round(max(abn.total)*depth)
-  }
-  names(obs.total) = paste0("sub", seq(n.samp))
-  
-  # Absolute abundance in a sample
-  set.seed(obs.seed)
-  obs.mat = matrix(NA, nrow = n.taxa, ncol  =  n.samp)
-  for (i in 1:n.samp.grp1) {
-    obs.mat[, i] = phyloseq:::rarefaction_subsample(x = abn.mat[, 1], sample.size = obs.total[i])
-  }
-  for (i in (n.samp.grp1 + 1):n.samp) {
-    obs.mat[, i] = phyloseq:::rarefaction_subsample(x = abn.mat[, 2], sample.size = obs.total[i])
-  }
-  
-  # Prepare outputs
-  abn.dat = data.frame(abn.mat, row.names  =  NULL)
-  rownames(abn.dat) = taxa.id
-  colnames(abn.dat) = c("grp1", "grp2")
-  
-  obs.dat = data.frame(obs.mat, row.names  =  NULL)
-  rownames(obs.dat) = taxa.id
-  colnames(obs.dat) = paste0("sub", seq(n.samp))
-  
-  grp.ind = c(rep(1, n.samp.grp1), rep(2, n.samp.grp2))
-  names(grp.ind) = paste0("sub", seq(n.samp))
-  
-  names(diff.ind) = taxa.id
-  
-  c.mult = c(obs.total[1:n.samp.grp1]/abn.total[1], 
-             obs.total[(n.samp.grp1 + 1):n.samp]/abn.total[2])
-  names(c.mult) = paste0("sub", seq(n.samp))
-  
-  test.data = list(abn.dat, obs.dat, effect.size, grp.ind, 
-                   diff.ind, c.mult, abn.total, obs.total)
-  names(test.data) = c("eco.abn", "obs.abn", "effect.size", "grp", 
-                       "diff.taxa", "mult", "micro.load", "lib.size")
-  return(test.data)
-}
 ```
 
 # 2. Monte Carlo Simulations
@@ -118,33 +42,30 @@ abn.tab.gen = function(template, n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, ab
 ## 2.1 Simulation Settings
 
 ```{r, message=FALSE, warning=FALSE, comment=NA}
-# The number of taxa, library size, and sample size
-n.taxa=1000; library.size="small"; n.samp=c("20_30", "50_50")
+# The number of taxa, sampling depth, and sample size
+n.taxa=1000; n.samp=c("20_30", "50_50")
 
 # The proportion of differentially abundant taxa
-prop.diff=c(0.05, 0.15, 0.25)
+prop.diff=c(0.05, 0.25, 0.50, 0.75)
 
 # Set seeds
 iterNum=100
 abn.seed=seq(iterNum)
 
-# Define the simulation parameters
-simparams=expand.grid(n.taxa, n.samp, prop.diff, abn.seed, library.size)
-colnames(simparams)=c("n.taxa", "n.samp", "prop.diff", "abn.seed", "library.size")
+# Define the simulation parameters combinations
+simparams=expand.grid(n.taxa, n.samp, prop.diff, abn.seed)
+colnames(simparams)=c("n.taxa", "n.samp", "prop.diff", "abn.seed")
 simparams=simparams%>%mutate(obs.seed=abn.seed+1)
 simparams=simparams%>%separate(col = n.samp, into = c("n.samp.grp1", "n.samp.grp2"), sep = "_")
 simparams=simparams%>%arrange(n.taxa, n.samp.grp1, prop.diff, abn.seed, obs.seed)
 simparams.list=apply(simparams, 1, paste0, collapse="_")
 
-simparamslabels=c("n.taxa", "n.samp.grp1", "n.samp.grp2", "prop.diff", 
-                  "abn.seed", "library.size", "obs.seed")
+simparamslabels=c("n.taxa", "n.samp.grp1", "n.samp.grp2", "prop.diff", "abn.seed", "obs.seed")
 ```
 
 ## 2.2 ANCOM-BC
 
 ```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
-source("ancom_bc_v1.0.R")
-
 library(doParallel)
 library(foreach)
 
@@ -166,17 +87,16 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %dopar% {
   prop.diff=as.numeric(params["prop.diff"])
   abn.seed=as.numeric(params["abn.seed"])
   obs.seed=as.numeric(params["obs.seed"])
-  library.size=params["library.size"]
   
   # Data generation
   test.dat=abn.tab.gen(template, n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs.seed,
-                       struc.zero.prop=0.2, library.size)
+                       struc.zero.prop=0.2)
   obs.abn=test.dat$obs.abn
   meta.data=cbind(Sample.ID=paste0("sub", seq(n.samp.grp1+n.samp.grp2)), 
                   group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
   
   # Pre-processing
-  feature.table=obs.abn; sample.var="Sample.ID"; group.var="group"; 
+  feature.table=obs.abn; sample.var="Sample.ID"; group.var="group"
   zero.cut=0.90; lib.cut=1000; neg.lb=FALSE
   pre.process=feature_table_pre_process(feature.table, meta.data, sample.var, 
                                         group.var, zero.cut, lib.cut, neg.lb)
@@ -219,8 +139,6 @@ write_csv(data.frame(simlist), "fdr_power_ancom_bc_soil.csv")
 ## 2.3 ANCOM
 
 ```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
-source("ancom_simple.R")
-
 library(doParallel)
 library(foreach)
 
@@ -242,11 +160,10 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %dopar% {
   prop.diff=as.numeric(params["prop.diff"])
   abn.seed=as.numeric(params["abn.seed"])
   obs.seed=as.numeric(params["obs.seed"])
-  library.size=params["library.size"]
   
   # Data generation
   test.dat=abn.tab.gen(template, n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs.seed,
-                       struc.zero.prop=0.2, library.size)
+                       struc.zero.prop=0.2)
   meta.data=cbind(Sample.ID=paste0("sub", seq(n.samp.grp1+n.samp.grp2)), 
                   group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
   feature.table.origin=test.dat$obs.abn
@@ -312,11 +229,10 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %do% {
   prop.diff=as.numeric(params["prop.diff"])
   abn.seed=as.numeric(params["abn.seed"])
   obs.seed=as.numeric(params["obs.seed"])
-  library.size=params["library.size"]
   
   # Data generation
   test.dat=abn.tab.gen(template, n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs.seed,
-                       struc.zero.prop=0.2, library.size)
+                       struc.zero.prop=0.2)
   
   # Prepare data for DESeq2
   countdata=test.dat$obs.abn # Format for DESeq2: taxa are rows
@@ -390,11 +306,10 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %do% {
   prop.diff=as.numeric(params["prop.diff"])
   abn.seed=as.numeric(params["abn.seed"])
   obs.seed=as.numeric(params["obs.seed"])
-  library.size=params["library.size"]
   
   # Data generation
   test.dat=abn.tab.gen(template, n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs.seed,
-                       struc.zero.prop=0.2, library.size)
+                       struc.zero.prop=0.2)
   
   # Prepare data for edgeR
   groupdata=factor(rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
@@ -456,11 +371,10 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %do% {
   prop.diff=as.numeric(params["prop.diff"])
   abn.seed=as.numeric(params["abn.seed"])
   obs.seed=as.numeric(params["obs.seed"])
-  library.size=params["library.size"]
   
   # Data generation
   test.dat=abn.tab.gen(template, n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs.seed, 
-                       struc.zero.prop=0.2, library.size)
+                       struc.zero.prop=0.2)
   
   # Prepare data for metagenomeSeq
   meta.data=data.frame(group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
@@ -531,11 +445,10 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %do% {
   prop.diff=as.numeric(params["prop.diff"])
   abn.seed=as.numeric(params["abn.seed"])
   obs.seed=as.numeric(params["obs.seed"])
-  library.size=params["library.size"]
   
   # Data generation
   test.dat=abn.tab.gen(template, n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs.seed,
-                       struc.zero.prop=0.2, library.size)
+                       struc.zero.prop=0.2)
   
   # Prepare data for metagenomeSeq
   meta.data=data.frame(group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
@@ -608,11 +521,10 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %do% {
   prop.diff=as.numeric(params["prop.diff"])
   abn.seed=as.numeric(params["abn.seed"])
   obs.seed=as.numeric(params["obs.seed"])
-  library.size=params["library.size"]
   
   # Generate data
   test.dat=abn.tab.gen(template, n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs.seed,
-                       struc.zero.prop=0.2, library.size)
+                       struc.zero.prop=0.2)
   
   meta.data=data.frame(group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
   countdata=test.dat$obs.abn
@@ -664,11 +576,10 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %do% {
   prop.diff=as.numeric(params["prop.diff"])
   abn.seed=as.numeric(params["abn.seed"])
   obs.seed=as.numeric(params["obs.seed"])
-  library.size=params["library.size"]
   
   # Generate data
   test.dat=abn.tab.gen(template, n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs.seed,
-                       struc.zero.prop=0.2, library.size)
+                       struc.zero.prop=0.2)
   
   meta.data=data.frame(group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
   countdata=test.dat$obs.abn
@@ -705,14 +616,14 @@ write_csv(data.frame(simlist), "fdr_power_wilcox_tss_soil.csv")
 
 ```{r, message=FALSE, warning=FALSE, comment=NA}
 ## Read in original data
-dat.ancom_bc=read_csv("../data/sim_additional/fdr_power_ancom_bc_soil.csv")
-dat.ancom=read_csv("../data/sim_additional/fdr_power_ancom_soil.csv")
-dat.deseq2=read_csv("../data/sim_additional/fdr_power_deseq2_soil.csv")
-dat.edger=read_csv("../data/sim_additional/fdr_power_edger_soil.csv")
-dat.zilg=read_csv("../data/sim_additional/fdr_power_zilg_soil.csv")
-dat.zig=read_csv("../data/sim_additional/fdr_power_zig_soil.csv")
-dat.wilcox_un=read_csv("../data/sim_additional/fdr_power_wilcox_un_soil.csv")
-dat.wilcox_tss=read_csv("../data/sim_additional/fdr_power_wilcox_tss_soil.csv")
+dat.ancom_bc=read_csv("../data/sim_soil/fdr_power_ancom_bc_soil.csv")
+dat.ancom=read_csv("../data/sim_soil/fdr_power_ancom_soil.csv")
+dat.deseq2=read_csv("../data/sim_soil/fdr_power_deseq2_soil.csv")
+dat.edger=read_csv("../data/sim_soil/fdr_power_edger_soil.csv")
+dat.zilg=read_csv("../data/sim_soil/fdr_power_zilg_soil.csv")
+dat.zig=read_csv("../data/sim_soil/fdr_power_zig_soil.csv")
+dat.wilcox_un=read_csv("../data/sim_soil/fdr_power_wilcox_un_soil.csv")
+dat.wilcox_tss=read_csv("../data/sim_soil/fdr_power_wilcox_tss_soil.csv")
 
 ## Reshaping data
 simpattern=distinct(simparams, n.taxa, n.samp.grp1, n.samp.grp2, prop.diff)
@@ -747,6 +658,8 @@ dat.fig$n.samp.grp=factor(dat.fig$n.samp.grp)
 levels(dat.fig$n.samp.grp)=c("n = 20/30", "n = 50/50")
 dat.fig$method=factor(dat.fig$method)
 dat.fig$prop.diff=factor(dat.fig$prop.diff)
+
+dat.fig%>%datatable()%>%formatRound(columns=c("FDR", "FDRSD", "power", "powerSD"), digits=3)
 ```
 
 ## 3.1 Fig. S3a

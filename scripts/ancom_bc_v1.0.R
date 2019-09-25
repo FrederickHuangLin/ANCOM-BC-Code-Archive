@@ -2,7 +2,7 @@
 library(nloptr)
 library(dplyr)
 
-# Data pre-processing
+# Data Pre-Processing
 feature_table_pre_process = function(feature.table, meta.data, sample.var, group.var, 
                                      zero.cut = 0.90, lib.cut = 1000, neg.lb){
   feature.table = data.frame(feature.table, check.names = FALSE)
@@ -126,7 +126,7 @@ feature_table_pre_process = function(feature.table, meta.data, sample.var, group
 }
 
 # ANCOM-BC main function
-ANCOM_BC = function(feature.table, grp.name, grp.ind, struc.zero, adj.method = "bonferroni", 
+ANCOM_BC = function(feature.table, grp.name, grp.ind, struc.zero, adj.method = "BH", 
                     tol.EM = 1e-5, max.iterNum = 100, perNum = 1000, alpha = 0.05){
   n.taxa.raw = nrow(feature.table)
   taxa.id.raw = rownames(feature.table)
@@ -177,6 +177,7 @@ ANCOM_BC = function(feature.table, grp.name, grp.ind, struc.zero, adj.method = "
   
   ### 2. Estimate the bias (between-group difference of sampling fractions) by E-M algorithm
   bias.est.vec = rep(NA, n.grp-1)
+  bias.var.vec = rep(NA, n.grp-1)
   for (i in 1:(n.grp-1)) {
     Delta = mu[, 1] - mu[, 1+i]
     Delta.var.est = rowSums(mu.var[, c(1, 1+i)])
@@ -230,7 +231,7 @@ ANCOM_BC = function(feature.table, grp.name, grp.ind, struc.zero, adj.method = "
       d2_new = max(sum(r3i*(Delta-delta)/(sigmai.sq+psi2.sq), na.rm = T)/
                      sum(r3i/(sigmai.sq+psi2.sq), na.rm = T), 0)
       
-      # Nelder-Mead simplex algorithm for psi1.sq, psi2.sq, and sigmai.sq
+      # Nelder-Mead simplex algorithm for psi1.sq and psi2.sq
       obj.psi1.sq = function(x){
         log.pdf = log(sapply(seq(n.taxa), function(i) dnorm(Delta[i], delta+d1, sqrt(sigmai.sq[i]+x))))
         log.pdf[is.infinite(log.pdf)] = 0
@@ -256,8 +257,20 @@ ANCOM_BC = function(feature.table, grp.name, grp.ind, struc.zero, adj.method = "
                        (d1_new-d1)^2 + (d2_new-d2)^2 + (psi1.sq_new-psi1.sq)^2 + (psi2.sq_new-psi2.sq)^2)
       iterNum = iterNum+1
     }
-    # 2.23 Estimate the bias term
+    # 2.23 Estimate the bias
     bias.est.vec[i] = delta.vec[length(delta.vec)]
+    
+    # 2.24 Estimate the variance of bias
+    # Cluster 1
+    C1 = which(Delta < quantile(Delta, pi1_new, na.rm = T))
+    # Cluster 2
+    C2 = which(Delta >= quantile(Delta, pi1_new, na.rm = T) & Delta < quantile(Delta, 1 - pi3_new, na.rm = T))
+    # Cluster 3
+    C3 = which(Delta >= quantile(Delta, 1 - pi3_new, na.rm = T))
+    kappa.sq = sigmai.sq
+    kappa.sq[C1] = kappa.sq[C1] + psi1.sq_new; kappa.sq[C3] = kappa.sq[C3] + psi2.sq_new
+    bias.var.vec[i] = 1 / (sum(1 / kappa.sq))
+    if (is.na(bias.var.vec[i])) bias.var.vec[i] = 0
   }
   bias.est.vec = c(0, bias.est.vec)
   
@@ -271,7 +284,15 @@ ANCOM_BC = function(feature.table, grp.name, grp.ind, struc.zero, adj.method = "
   ### 4. Hypothesis testing
   W.numerator = matrix(apply(mu.adj.comp, 1, function(x) combn(x, 2, FUN = diff)), ncol = n.taxa)
   W.numerator = t(W.numerator)
-  W.denominator = matrix(apply(mu.var, 1, function(x) combn(x, 2, FUN = sum)), ncol = n.taxa)
+  # Variance of estimated mean difference
+  W.denominator1 = matrix(apply(mu.var, 1, function(x) combn(x, 2, FUN = sum)), ncol = n.taxa)
+  # Variance of delta_hat
+  if (length(bias.var.vec) < 2) {
+    W.denominator2 = bias.var.vec
+  }else {
+    W.denominator2 = c(bias.var.vec, combn(bias.var.vec, 2, FUN = sum))
+  }
+  W.denominator = W.denominator1 + W.denominator2 + 2 * sqrt(W.denominator1 * W.denominator2)
   W.denominator = t(sqrt(W.denominator))
   grp.pair = combn(n.grp, 2)
   colnames(W.numerator) = sapply(1:ncol(grp.pair), function(x) 
@@ -356,4 +377,3 @@ ANCOM_BC = function(feature.table, grp.name, grp.ind, struc.zero, adj.method = "
   out = list(feature.table = feature.table, res = res, d = d.adj, mu = mu.adj, bias.est = bias.est.vec)
   return(out)
 }
-

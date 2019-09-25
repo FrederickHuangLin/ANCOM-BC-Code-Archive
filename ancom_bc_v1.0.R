@@ -261,8 +261,16 @@ ANCOM_BC = function(feature.table, grp.name, grp.ind, struc.zero, adj.method = "
     bias.est.vec[i] = delta.vec[length(delta.vec)]
     
     # 2.24 Estimate the variance of bias
-    bias.var.vec[i] = var(Delta[Delta > quantile(Delta, pi1_new, na.rm = T) & 
-                                  Delta < quantile(Delta, 1 - pi3_new, na.rm = T)], na.rm = T)
+    # Cluster 1
+    C1 = which(Delta < quantile(Delta, pi1_new, na.rm = T))
+    # Cluster 2
+    C2 = which(Delta >= quantile(Delta, pi1_new, na.rm = T) & Delta < quantile(Delta, 1 - pi3_new, na.rm = T))
+    # Cluster 3
+    C3 = which(Delta >= quantile(Delta, 1 - pi3_new, na.rm = T))
+    kappa.sq = sigmai.sq
+    kappa.sq[C1] = kappa.sq[C1] + psi1.sq_new; kappa.sq[C3] = kappa.sq[C3] + psi2.sq_new
+    bias.var.vec[i] = 1 / (sum(1 / kappa.sq))
+    if (is.na(bias.var.vec[i])) bias.var.vec[i] = 0
   }
   bias.est.vec = c(0, bias.est.vec)
   
@@ -366,7 +374,6 @@ ANCOM_BC = function(feature.table, grp.name, grp.ind, struc.zero, adj.method = "
   colnames(res) = colnames(res.comp); rownames(res) = taxa.id.raw
   res = res%>%mutate(diff.abn = ifelse(q.val < alpha, TRUE, FALSE))
   
-  out = list(feature.table = feature.table, res = res, d = d.adj, mu = mu.adj, bias.est = bias.est.vec,
-             d.init = d, mu.init = mu, resid = mu.var.each)
+  out = list(feature.table = feature.table, res = res, d = d.adj, mu = mu.adj, bias.est = bias.est.vec)
   return(out)
 }

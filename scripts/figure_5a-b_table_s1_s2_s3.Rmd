@@ -1,0 +1,705 @@
+---
+title: "Figure 5a-b, Table S1, S2, S3"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+rm(list = ls())
+
+library(readxl)
+library(tidyverse)
+library(nloptr)
+library(phyloseq)
+library(stringr)
+library(ggpubr)
+library(magrittr)
+library(qwraps2)
+library(pander)
+panderOptions('table.caption.prefix', NULL)
+panderOptions('table.continues', NULL)
+panderOptions('table.emphasize.rownames', FALSE)
+
+source("ancom_bc_v1.0.R")
+```
+
+# 1. Feature Table Construction
+
+## 1.1 Meta data
+
+```{r, message=FALSE, warning=FALSE, comment=NA}
+# Read in meta data
+meta_data=read_tsv("../data/global_gut/global_gut_metadata.txt")
+meta_data=meta_data%>%transmute(Sample.ID=`#SampleID`, age=AGE, sex=SEX, country=COUNTRY)%>%
+  arrange(Sample.ID)
+meta_data=meta_data[complete.cases(meta_data), ]
+meta_data$age=as.numeric(meta_data$age)
+meta_data$country=recode(meta_data$country, `GAZ:Malawi` = "MA", 
+                         `GAZ:United States of America` = "US", `GAZ:Venezuela` = "VEN")
+
+# From Yatsunenko's supplementary files
+meta_data2=read_excel("../data/global_gut/NIHMS365354-supplement-3.xls", sheet = 1, skip = 2)
+meta_data2=meta_data2[!is.na(meta_data2$`Sample Identifier`), ]
+meta_data2=meta_data2%>%
+  transmute(Sample.ID=`Sample Identifier`, age=`Age (Years)`, gender=Gender, 
+            bmi=`BMI (kg/m2)`, breast.fed=`Breast-fed`, country=Country)%>%
+  arrange(Sample.ID)
+meta_data2$age=signif(as.numeric(meta_data2$age), digits = 2)
+meta_data2$bmi=signif(as.numeric(meta_data2$bmi), digits = 2)
+meta_data2$breast.fed[which(meta_data2$breast.fed=="NA1")]="NA"
+
+# read in taxonomy
+taxonomy=read_tsv("../data/global_gut/global_gut_taxonomy.txt")
+taxonomy=taxonomy%>%rowwise()%>%
+  mutate(genus_name=paste(Phylum, Genus, sep = ";"))
+
+# read in the OTU table and aggregate into phylum level
+otu_table=read_tsv("../data/global_gut/global_gut_otu.txt")
+otu_table=otu_table[, -532]
+otu_table$OTU_ID=taxonomy$Phylum[match(otu_table$OTU_ID, taxonomy$OTU_ID)]
+phylum_table=otu_table%>%group_by(OTU_ID)%>%
+  summarise_all(sum)
+non_info_pos=grep("\\p__\\b", phylum_table$OTU_ID) # Exact match
+phylum_table=phylum_table[-non_info_pos, ]
+
+phylum_table=as.data.frame(phylum_table)
+```
+
+## 1.2 Supplementary Table 2
+
+**Age<=2**
+
+```{r, message=FALSE, warning=FALSE, comment=NA, results='asis'}
+options(qwraps2_markup = "markdown")
+summary_template =
+  list("Age" =
+       list("min" = ~ min(.data$age, na.rm = T),
+            "max" = ~ max(.data$age, na.rm = T),
+            "mean (sd)" = ~ qwraps2::mean_sd(.data$age, na_rm = T, show_n = "never")),
+       "BMI" =
+       list("min" = ~ min(.data$bmi, na.rm = T),
+            "max" = ~ max(.data$bmi, na.rm = T),
+            "mean (sd)" = ~ qwraps2::mean_sd(.data$bmi, na_rm = T, show_n = "never")),
+       "Gender" =
+       list("F" = ~ n_perc0(.data$gender=="Female"),
+            "M" = ~ n_perc0(.data$gender=="Male"),
+            "NA" = ~ n_perc0(.data$gender=="NA")),
+       "Breast Fed" =
+       list("Y" = ~ qwraps2::n_perc0(.data$breast.fed == "Yes"),
+            "N"  = ~ qwraps2::n_perc0(.data$breast.fed == "No (Formula-fed)"),
+            "NA"  = ~ qwraps2::n_perc0(.data$breast.fed == "NA"))
+       )
+
+meta_data_0_2=meta_data2%>%filter(age<=2)
+by_age_0_2=summary_table(dplyr::group_by(meta_data_0_2, country), summary_template)
+by_age_0_2
+```
+
+**age 18 - 40**
+
+```{r, message=FALSE, warning=FALSE, comment=NA, results='asis'}
+meta_data_18_40=meta_data2%>%filter(age>=18, age<=40)
+by_age_18_40=summary_table(dplyr::group_by(meta_data_18_40, country), summary_template)
+by_age_18_40
+```
+
+# 2. Differential Abundance (DA) Analysis
+
+## 2.1 MA vs US
+
+### 2.11 0 - 2
+
+```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
+# Subset meta data
+meta.data=meta_data%>%filter(country%in%c("MA", "US"), age<=2)
+meta.data$country=as.character(meta.data$country)
+pander(table(meta.data$country))
+# Subset OTU table
+obs.abn=phylum_table
+rownames(obs.abn)=obs.abn$OTU_ID
+obs.abn=obs.abn[, -1]
+obs.abn=obs.abn[, meta.data$Sample.ID]
+# Recode sample ID
+meta.data$Sample.ID=seq(nrow(meta.data))
+colnames(obs.abn)=seq(nrow(meta.data))
+
+# Pre-Processing
+feature.table=obs.abn; sample.var="Sample.ID"; group.var="country"; 
+zero.cut=0.90; lib.cut=1000; neg.lb=TRUE
+pre.process=feature_table_pre_process(feature.table, meta.data, sample.var, group.var, 
+                                      zero.cut, lib.cut, neg.lb)
+feature.table=pre.process$feature.table
+library.size=pre.process$library.size
+group.name=pre.process$group.name
+group.ind=pre.process$group.ind
+struc.zero=pre.process$structure.zeros
+
+# Paras for ANCOM-BC
+grp.name=group.name; grp.ind=group.ind; adj.method="bonferroni"
+tol.EM=1e-5; max.iterNum=100; perNum=1000; alpha=0.05
+
+# Run ANCOM-BC
+start_time <- Sys.time()
+out=ANCOM_BC(feature.table, grp.name, grp.ind, struc.zero, adj.method, 
+             tol.EM, max.iterNum, perNum, alpha)
+end_time <- Sys.time()
+end_time - start_time
+
+# Test result
+res.ANCOM_BC=data.frame(phylum=rownames(out$feature.table), out$res, 
+                        struc.zero[rownames(out$feature.table), ], 
+                        row.names = NULL, stringsAsFactors=FALSE, check.names = FALSE)
+alpha.adj=0.05/nrow(res.ANCOM_BC)
+critic.val=qnorm(1-alpha.adj/2)
+res.ANCOM_BC=res.ANCOM_BC%>%transmute(phylum,
+                                      `log fold change (MA - US)` = -`mean.difference (US - MA)`,
+                                      se = `se (US - MA)`,
+                                      ci.lo.adj=`log fold change (MA - US)`-critic.val*se, 
+                                      ci.up.adj=`log fold change (MA - US)`+critic.val*se, 
+                                      p.val, q.val, diff.abn, 
+                                      `structural.zero (MA)`, 
+                                      `structural.zero (US)`)
+res.ANCOM_BC=res.ANCOM_BC%>%arrange(q.val)
+write_csv(res.ANCOM_BC, "../data/global_gut/ma_us_phylum_age2.csv")
+```
+
+### 2.12 18 - 40
+
+```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
+# Subset meta data
+meta.data=meta_data%>%filter(country%in%c("MA", "US"), age>=18, age<=40)
+meta.data$country=as.character(meta.data$country)
+pander(table(meta.data$country))
+# Subset OTU table
+obs.abn=phylum_table
+rownames(obs.abn)=obs.abn$OTU_ID
+obs.abn=obs.abn[, -1]
+obs.abn=obs.abn[, meta.data$Sample.ID]
+# Recode sample ID
+meta.data$Sample.ID=seq(nrow(meta.data))
+colnames(obs.abn)=seq(nrow(meta.data))
+
+# Pre-Processing
+feature.table=obs.abn; sample.var="Sample.ID"; group.var="country"; 
+zero.cut=0.90; lib.cut=1000; neg.lb=TRUE
+pre.process=feature_table_pre_process(feature.table, meta.data, sample.var, group.var, 
+                                      zero.cut, lib.cut, neg.lb)
+feature.table=pre.process$feature.table
+library.size=pre.process$library.size
+group.name=pre.process$group.name
+group.ind=pre.process$group.ind
+struc.zero=pre.process$structure.zeros
+
+# Paras for ANCOM-BC
+grp.name=group.name; grp.ind=group.ind; adj.method="bonferroni"
+tol.EM=1e-5; max.iterNum=100; perNum=1000; alpha=0.05
+
+# Run ANCOM-BC
+start_time <- Sys.time()
+out=ANCOM_BC(feature.table, grp.name, grp.ind, struc.zero, adj.method, 
+             tol.EM, max.iterNum, perNum, alpha)
+end_time <- Sys.time()
+end_time - start_time
+
+# Test result
+res.ANCOM_BC=data.frame(phylum=rownames(out$feature.table), out$res, 
+                        struc.zero[rownames(out$feature.table), ], 
+                        row.names = NULL, stringsAsFactors=FALSE, check.names = FALSE)
+alpha.adj=0.05/nrow(res.ANCOM_BC)
+critic.val=qnorm(1-alpha.adj/2)
+res.ANCOM_BC=res.ANCOM_BC%>%transmute(phylum,
+                                      `log fold change (MA - US)` = -`mean.difference (US - MA)`,
+                                      se=`se (US - MA)`, 
+                                      ci.lo.adj=`log fold change (MA - US)`-critic.val*se, 
+                                      ci.up.adj=`log fold change (MA - US)`+critic.val*se, 
+                                      p.val, q.val, diff.abn, 
+                                      `structural.zero (MA)`, 
+                                      `structural.zero (US)`)
+res.ANCOM_BC=res.ANCOM_BC%>%arrange(q.val)
+write_csv(res.ANCOM_BC, "../data/global_gut/ma_us_phylum_age18_40.csv")
+```
+
+## 2.2 VEN vs US
+
+### 2.21 0 - 2
+
+```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
+# Subset meta data
+meta.data=meta_data%>%filter(country%in%c("US", "VEN"), age<=2)
+meta.data$country=as.character(meta.data$country)
+pander(table(meta.data$country))
+# Subset OTU table
+obs.abn=phylum_table
+rownames(obs.abn)=obs.abn$OTU_ID
+obs.abn=obs.abn[, -1]
+obs.abn=obs.abn[, meta.data$Sample.ID]
+# Recode sample ID
+meta.data$Sample.ID=seq(nrow(meta.data))
+colnames(obs.abn)=seq(nrow(meta.data))
+
+# Pre-Processing
+feature.table=obs.abn; sample.var="Sample.ID"; group.var="country"; 
+zero.cut=0.90; lib.cut=1000; neg.lb=TRUE
+pre.process=feature_table_pre_process(feature.table, meta.data, sample.var, group.var, 
+                                      zero.cut, lib.cut, neg.lb)
+feature.table=pre.process$feature.table
+library.size=pre.process$library.size
+group.name=pre.process$group.name
+group.ind=pre.process$group.ind
+struc.zero=pre.process$structure.zeros
+
+# Paras for ANCOM-BC
+grp.name=group.name; grp.ind=group.ind; adj.method="bonferroni"
+tol.EM=1e-5; max.iterNum=100; perNum=1000; alpha=0.05
+
+# Run ANCOM-BC
+start_time <- Sys.time()
+out=ANCOM_BC(feature.table, grp.name, grp.ind, struc.zero, adj.method, 
+             tol.EM, max.iterNum, perNum, alpha)
+end_time <- Sys.time()
+end_time - start_time
+
+# Test result
+res.ANCOM_BC=data.frame(phylum=rownames(out$feature.table), out$res, 
+                        struc.zero[rownames(out$feature.table), ], 
+                        row.names = NULL, stringsAsFactors=FALSE, check.names = FALSE)
+alpha.adj=0.05/nrow(res.ANCOM_BC)
+critic.val=qnorm(1-alpha.adj/2)
+res.ANCOM_BC=res.ANCOM_BC%>%transmute(phylum,
+                                      `log fold change (VEN - US)` = `mean.difference (VEN - US)`,
+                                      se=`se (VEN - US)`, 
+                                      ci.lo.adj=`log fold change (VEN - US)`-critic.val*se, 
+                                      ci.up.adj=`log fold change (VEN - US)`+critic.val*se, 
+                                      p.val, q.val, diff.abn, 
+                                      `structural.zero (VEN)`, 
+                                      `structural.zero (US)`)
+res.ANCOM_BC=res.ANCOM_BC%>%arrange(q.val)
+write_csv(res.ANCOM_BC, "../data/global_gut/ven_us_phylum_age2.csv")
+```
+
+### 2.22 18 - 40
+
+```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
+# Subset meta data
+meta.data=meta_data%>%filter(country%in%c("US", "VEN"), age>=18, age<=40)
+meta.data$country=as.character(meta.data$country)
+pander(table(meta.data$country))
+# Subset OTU table
+obs.abn=phylum_table
+rownames(obs.abn)=obs.abn$OTU_ID
+obs.abn=obs.abn[, -1]
+obs.abn=obs.abn[, meta.data$Sample.ID]
+# Recode sample ID
+meta.data$Sample.ID=seq(nrow(meta.data))
+colnames(obs.abn)=seq(nrow(meta.data))
+
+# Pre-Processing
+feature.table=obs.abn; sample.var="Sample.ID"; group.var="country"; 
+zero.cut=0.90; lib.cut=1000; neg.lb=TRUE
+pre.process=feature_table_pre_process(feature.table, meta.data, sample.var, group.var, 
+                                      zero.cut, lib.cut, neg.lb)
+feature.table=pre.process$feature.table
+library.size=pre.process$library.size
+group.name=pre.process$group.name
+group.ind=pre.process$group.ind
+struc.zero=pre.process$structure.zeros
+
+# Paras for ANCOM-BC
+grp.name=group.name; grp.ind=group.ind; adj.method="bonferroni"
+tol.EM=1e-5; max.iterNum=100; perNum=1000; alpha=0.05
+
+# Run ANCOM-BC
+start_time <- Sys.time()
+out=ANCOM_BC(feature.table, grp.name, grp.ind, struc.zero, adj.method, 
+             tol.EM, max.iterNum, perNum, alpha)
+end_time <- Sys.time()
+end_time - start_time
+
+# Test result
+res.ANCOM_BC=data.frame(phylum=rownames(out$feature.table), out$res, 
+                        struc.zero[rownames(out$feature.table), ], 
+                        row.names = NULL, stringsAsFactors=FALSE, check.names = FALSE)
+alpha.adj=0.05/nrow(res.ANCOM_BC)
+critic.val=qnorm(1-alpha.adj/2)
+res.ANCOM_BC=res.ANCOM_BC%>%transmute(phylum,
+                                      `log fold change (VEN - US)` = `mean.difference (VEN - US)`,
+                                      se=`se (VEN - US)`, 
+                                      ci.lo.adj=`log fold change (VEN - US)`-critic.val*se, 
+                                      ci.up.adj=`log fold change (VEN - US)`+critic.val*se, 
+                                      p.val, q.val, diff.abn, 
+                                      `structural.zero (VEN)`, 
+                                      `structural.zero (US)`)
+res.ANCOM_BC=res.ANCOM_BC%>%arrange(q.val)
+write_csv(res.ANCOM_BC, "../data/global_gut/ven_us_phylum_age18_40.csv")
+```
+
+## 2.3 MA vs VEN
+
+### 2.31 0 - 2
+
+```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
+# Subset meta data
+meta.data=meta_data%>%filter(country%in%c("MA", "VEN"), age<=2)
+meta.data$country=as.character(meta.data$country)
+pander(table(meta.data$country))
+# Subset OTU table
+obs.abn=phylum_table
+rownames(obs.abn)=obs.abn$OTU_ID
+obs.abn=obs.abn[, -1]
+obs.abn=obs.abn[, meta.data$Sample.ID]
+# Recode sample ID
+meta.data$Sample.ID=seq(nrow(meta.data))
+colnames(obs.abn)=seq(nrow(meta.data))
+
+# Pre-Processing
+feature.table=obs.abn; sample.var="Sample.ID"; group.var="country"; 
+zero.cut=0.90; lib.cut=1000; neg.lb=TRUE
+pre.process=feature_table_pre_process(feature.table, meta.data, sample.var, group.var, 
+                                      zero.cut, lib.cut, neg.lb)
+feature.table=pre.process$feature.table
+library.size=pre.process$library.size
+group.name=pre.process$group.name
+group.ind=pre.process$group.ind
+struc.zero=pre.process$structure.zeros
+
+# Paras for ANCOM-BC
+grp.name=group.name; grp.ind=group.ind; adj.method="bonferroni"
+tol.EM=1e-5; max.iterNum=100; perNum=1000; alpha=0.05
+
+# Run ANCOM-BC
+start_time <- Sys.time()
+out=ANCOM_BC(feature.table, grp.name, grp.ind, struc.zero, adj.method, 
+             tol.EM, max.iterNum, perNum, alpha)
+end_time <- Sys.time()
+end_time - start_time
+
+# Test result
+res.ANCOM_BC=data.frame(phylum=rownames(out$feature.table), out$res, 
+                        struc.zero[rownames(out$feature.table), ], 
+                        row.names = NULL, stringsAsFactors=FALSE, check.names = FALSE)
+alpha.adj=0.05/nrow(res.ANCOM_BC)
+critic.val=qnorm(1-alpha.adj/2)
+res.ANCOM_BC=res.ANCOM_BC%>%transmute(phylum,
+                                      `log fold change (MA - VEN)` = -`mean.difference (VEN - MA)`,
+                                      se=`se (VEN - MA)`, 
+                                      ci.lo.adj=`log fold change (MA - VEN)`-critic.val*se, 
+                                      ci.up.adj=`log fold change (MA - VEN)`+critic.val*se, 
+                                      p.val, q.val, diff.abn, 
+                                      `structural.zero (MA)`, 
+                                      `structural.zero (VEN)`)
+res.ANCOM_BC=res.ANCOM_BC%>%arrange(q.val)
+write_csv(res.ANCOM_BC, "../data/global_gut/ma_ven_phylum_age2.csv")
+```
+
+### 2.32 18 - 40
+
+```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
+# Subset meta data
+meta.data=meta_data%>%filter(country%in%c("MA", "VEN"), age>=18, age<=40)
+meta.data$country=as.character(meta.data$country)
+pander(table(meta.data$country))
+# Subset OTU table
+obs.abn=phylum_table
+rownames(obs.abn)=obs.abn$OTU_ID
+obs.abn=obs.abn[, -1]
+obs.abn=obs.abn[, meta.data$Sample.ID]
+# Recode sample ID
+meta.data$Sample.ID=seq(nrow(meta.data))
+colnames(obs.abn)=seq(nrow(meta.data))
+
+# Pre-Processing
+feature.table=obs.abn; sample.var="Sample.ID"; group.var="country"; 
+zero.cut=0.90; lib.cut=1000; neg.lb=TRUE
+pre.process=feature_table_pre_process(feature.table, meta.data, sample.var, group.var, 
+                                      zero.cut, lib.cut, neg.lb)
+feature.table=pre.process$feature.table
+library.size=pre.process$library.size
+group.name=pre.process$group.name
+group.ind=pre.process$group.ind
+struc.zero=pre.process$structure.zeros
+
+# Paras for ANCOM-BC
+grp.name=group.name; grp.ind=group.ind; adj.method="bonferroni"
+tol.EM=1e-5; max.iterNum=100; perNum=1000; alpha=0.05
+
+# Run ANCOM-BC
+start_time <- Sys.time()
+out=ANCOM_BC(feature.table, grp.name, grp.ind, struc.zero, adj.method, 
+             tol.EM, max.iterNum, perNum, alpha)
+end_time <- Sys.time()
+end_time - start_time
+
+# Test result
+res.ANCOM_BC=data.frame(phylum=rownames(out$feature.table), out$res, 
+                        struc.zero[rownames(out$feature.table), ], 
+                        row.names = NULL, stringsAsFactors=FALSE, check.names = FALSE)
+alpha.adj=0.05/nrow(res.ANCOM_BC)
+critic.val=qnorm(1-alpha.adj/2)
+res.ANCOM_BC=res.ANCOM_BC%>%transmute(phylum,
+                                      `log fold change (MA - VEN)` = -`mean.difference (VEN - MA)`,
+                                      se=`se (VEN - MA)`, 
+                                      ci.lo.adj=`log fold change (MA - VEN)`-critic.val*se, 
+                                      ci.up.adj=`log fold change (MA - VEN)`+critic.val*se, 
+                                      p.val, q.val, diff.abn, 
+                                      `structural.zero (MA)`, 
+                                      `structural.zero (VEN)`)
+res.ANCOM_BC=res.ANCOM_BC%>%arrange(q.val)
+write_csv(res.ANCOM_BC, "../data/global_gut/ma_ven_phylum_age18_40.csv")
+```
+
+# 3. Plottings
+
+## 3.1 MA vs US
+
+```{r, message=FALSE, warning=FALSE, comment=NA}
+ma_us_0_2=read_csv("../data/global_gut/ma_us_phylum_age2.csv")
+ma_us_18_40=read_csv("../data/global_gut/ma_us_phylum_age18_40.csv")
+ma_us_phyla=unique(c(ma_us_0_2$phylum, ma_us_18_40$phylum))
+
+ma_us_0_2=ma_us_0_2%>%transmute(phylum, log.fold.change=`log fold change (MA - US)`,
+                                se=se, ci.lo=ci.lo.adj, ci.up=ci.up.adj,
+                                struc.zero=ifelse(se==0, 1, 0), 
+                                q.val, age.group = "Infants",
+                                star=ifelse(q.val<.001, "***", 
+                                                ifelse(q.val<.01, "**",
+                                                       ifelse(q.val<.05, "*", ""))))
+if(length(setdiff(ma_us_phyla, ma_us_0_2$phylum))>0){
+  ma_us_0_2.1=data.frame(phylum=setdiff(ma_us_phyla, ma_us_0_2$phylum),
+                         log.fold.change=0, se=0, ci.lo=0, ci.up=0, 
+                         struc.zero=1, q.val=1, age.group="Infants", star="")
+  ma_us_0_2=rbind(ma_us_0_2, ma_us_0_2.1)
+}
+
+ma_us_18_40=ma_us_18_40%>%transmute(phylum, log.fold.change=`log fold change (MA - US)`,
+                                    se=se, ci.lo=ci.lo.adj, ci.up=ci.up.adj,
+                                    struc.zero=ifelse(se==0, 1, 0), 
+                                    q.val, age.group = "Adults",
+                                    star=ifelse(q.val<.001, "***", 
+                                                ifelse(q.val<.01, "**",
+                                                       ifelse(q.val<.05, "*", ""))))
+if(length(setdiff(ma_us_phyla, ma_us_18_40$phylum))>0){
+  ma_us_18_40.1=data.frame(phylum=setdiff(ma_us_phyla, ma_us_18_40$phylum),
+                           log.fold.change=0, se=0, ci.lo=0, ci.up=0, 
+                           struc.zero=1, q.val=1, age.group="Adults", star="")
+  ma_us_18_40=rbind(ma_us_18_40, ma_us_18_40.1)
+}
+
+dat.fig_ma_us=rbind(ma_us_0_2, ma_us_18_40)
+dat.fig_ma_us$age.group=factor(dat.fig_ma_us$age.group, 
+                               levels = c("Infants", "Adults"))
+dat.fig_ma_us$phylum=sapply(dat.fig_ma_us$phylum, function(x) strsplit(x, "__")[[1]][2])
+dat.fig_ma_us$phylum=factor(dat.fig_ma_us$phylum, levels = sort(unique(dat.fig_ma_us$phylum)))
+dat.fig_ma_us$struc.zero=factor(dat.fig_ma_us$struc.zero)
+```
+
+## 3.2 VEN vs US
+
+```{r, message=FALSE, warning=FALSE, comment=NA}
+ven_us_0_2=read_csv("../data/global_gut/ven_us_phylum_age2.csv")
+ven_us_18_40=read_csv("../data/global_gut/ven_us_phylum_age18_40.csv")
+ven_us_phyla=unique(c(ven_us_18_40$phylum, ven_us_0_2$phylum))
+
+ven_us_0_2=ven_us_0_2%>%transmute(phylum, log.fold.change=`log fold change (VEN - US)`,
+                                se=se, ci.lo=ci.lo.adj, ci.up=ci.up.adj,
+                                struc.zero=ifelse(se==0, 1, 0), 
+                                q.val, age.group = "Infants",
+                                star=ifelse(q.val<.001, "***", 
+                                                ifelse(q.val<.01, "**",
+                                                       ifelse(q.val<.05, "*", ""))))
+if(length(setdiff(ven_us_phyla, ven_us_0_2$phylum))>0){
+  ven_us_0_2.1=data.frame(phylum=setdiff(ven_us_phyla, ven_us_0_2$phylum),
+                         log.fold.change=0, se=0, ci.lo=0, ci.up=0, 
+                         struc.zero=1, q.val=1, age.group="Infants", star="")
+  ven_us_0_2=rbind(ven_us_0_2, ven_us_0_2.1)
+}
+
+ven_us_18_40=ven_us_18_40%>%transmute(phylum, log.fold.change=`log fold change (VEN - US)`,
+                                    se=se, ci.lo=ci.lo.adj, ci.up=ci.up.adj,
+                                    struc.zero=ifelse(se==0, 1, 0), 
+                                    q.val, age.group = "Adults",
+                                    star=ifelse(q.val<.001, "***", 
+                                                ifelse(q.val<.01, "**",
+                                                       ifelse(q.val<.05, "*", ""))))
+if(length(setdiff(ven_us_phyla, ven_us_18_40$phylum))>0){
+  ven_us_18_40.1=data.frame(phylum=setdiff(ven_us_phyla, ven_us_18_40$phylum),
+                           log.fold.change=0, se=0, ci.lo=0, ci.up=0, 
+                           struc.zero=1, q.val=1, age.group="Adults", star="")
+  ven_us_18_40=rbind(ven_us_18_40, ven_us_18_40.1)
+}
+
+dat.fig_ven_us=rbind(ven_us_0_2, ven_us_18_40)
+dat.fig_ven_us$age.group=factor(dat.fig_ven_us$age.group, 
+                               levels = c("Infants", "Adults"))
+dat.fig_ven_us$phylum=sapply(dat.fig_ven_us$phylum, function(x) strsplit(x, "__")[[1]][2])
+dat.fig_ven_us$phylum=factor(dat.fig_ven_us$phylum, levels = sort(unique(dat.fig_ven_us$phylum)))
+dat.fig_ven_us$struc.zero=factor(dat.fig_ven_us$struc.zero)
+```
+
+## 3.3 MA vs VEN
+
+```{r, message=FALSE, warning=FALSE, comment=NA}
+ma_ven_0_2=read_csv("../data/global_gut/ma_ven_phylum_age2.csv")
+ma_ven_18_40=read_csv("../data/global_gut/ma_ven_phylum_age18_40.csv")
+ma_ven_phyla=unique(c(ma_ven_18_40$phylum, ma_ven_0_2$phylum))
+
+ma_ven_0_2=ma_ven_0_2%>%transmute(phylum, log.fold.change=`log fold change (MA - VEN)`,
+                                se=se, ci.lo=ci.lo.adj, ci.up=ci.up.adj,
+                                struc.zero=ifelse(se==0, 1, 0), 
+                                q.val, age.group = "Infants",
+                                star=ifelse(q.val<.001, "***", 
+                                                ifelse(q.val<.01, "**",
+                                                       ifelse(q.val<.05, "*", ""))))
+if(length(setdiff(ma_ven_phyla, ma_ven_0_2$phylum))>0){
+  ma_ven_0_2.1=data.frame(phylum=setdiff(ma_ven_phyla, ma_ven_0_2$phylum),
+                         log.fold.change=0, se=0, ci.lo=0, ci.up=0, 
+                         struc.zero=1, q.val=1, age.group="Infants", star="")
+  ma_ven_0_2=rbind(ma_ven_0_2, ma_ven_0_2.1)
+}
+
+ma_ven_18_40=ma_ven_18_40%>%transmute(phylum, log.fold.change=`log fold change (MA - VEN)`,
+                                    se=se, ci.lo=ci.lo.adj, ci.up=ci.up.adj,
+                                    struc.zero=ifelse(se==0, 1, 0), 
+                                    q.val, age.group = "Adults",
+                                    star=ifelse(q.val<.001, "***", 
+                                                ifelse(q.val<.01, "**",
+                                                       ifelse(q.val<.05, "*", ""))))
+if(length(setdiff(ma_ven_phyla, ma_ven_18_40$phylum))>0){
+  ma_ven_18_40.1=data.frame(phylum=setdiff(ma_ven_phyla, ma_ven_18_40$phylum),
+                           log.fold.change=0, se=0, ci.lo=0, ci.up=0, 
+                           struc.zero=1, q.val=1, age.group="Adults", star="")
+  ma_ven_18_40=rbind(ma_ven_18_40, ma_ven_18_40.1)
+}
+
+dat.fig_ma_ven=rbind(ma_ven_0_2, ma_ven_18_40)
+dat.fig_ma_ven$age.group=factor(dat.fig_ma_ven$age.group, 
+                               levels = c("Infants", "Adults"))
+dat.fig_ma_ven$phylum=sapply(dat.fig_ma_ven$phylum, function(x) strsplit(x, "__")[[1]][2])
+dat.fig_ma_ven$phylum=factor(dat.fig_ma_ven$phylum, levels = sort(unique(dat.fig_ma_ven$phylum)))
+dat.fig_ma_ven$struc.zero=factor(dat.fig_ma_ven$struc.zero)
+```
+
+## 3.4 Fig. 5a
+
+```{r, message=FALSE, warning=FALSE, comment=NA}
+dat.fig_ma_us2=cbind(dat.fig_ma_us, type="MA - US")
+dat.fig_ven_us2=cbind(dat.fig_ven_us, type="VEN - US")
+dat.fig_ma_ven2=cbind(dat.fig_ma_ven, type="MA - VEN")
+dat.fig_ma_ven2=dat.fig_ma_ven2[-which(dat.fig_ma_ven2$phylum%in%c("Acidobacteria", "Chloroflexi")), ]
+dat.fig_ma_ven2$phylum=factor(dat.fig_ma_ven2$phylum)
+
+dat.fig=rbind(dat.fig_ma_us2, dat.fig_ven_us2, dat.fig_ma_ven2)
+dat.fig$type=factor(dat.fig$type, levels = c("MA - US", "VEN - US", "MA - VEN"))
+
+p=ggplot(dat.fig, aes(x=phylum, y=log.fold.change, ymin=ci.lo, ymax=ci.up, group=age.group)) + 
+  geom_bar(aes(fill=age.group), stat="identity", width=0.4, position=position_dodge())+
+  geom_errorbar(width=0.2, size=0.25, position=position_dodge(width = 0.4))+
+  geom_abline(slope = 0, intercept = 0, linetype="dashed", alpha=0.5)+
+  labs(x=NULL, y="Log Fold Change")+coord_flip()+
+  scale_fill_discrete(name=NULL)+
+  scale_x_discrete(limits = rev(levels(dat.fig$phylum)))+
+  facet_grid(.~type, scales = "free_x")+
+  theme_bw()+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_rect(fill="white"))+
+  geom_text(aes(y=log.fold.change+4*sign(log.fold.change), label=star), 
+            vjust=.7, color="black", position=position_dodge(width = .5))
+p = p+geom_point(data = dat.fig%>%filter(struc.zero==1), aes(x=phylum, y=log.fold.change),
+                 position=position_dodge(width = 0.4), shape=18)
+ggarrange(p, labels = "a")
+ggsave("../figures/Figure 5a.pdf", width=10, height=5, units='in')
+ggsave("../figures/Figure 5a.jpeg", width=10, height=5, units='in', dpi = 300)
+```
+
+## 3.5 Supplementary Table 1
+
+```{r, message=FALSE, warning=FALSE, comment=NA}
+library(openxlsx)
+
+write.xlsx(x = list(ma_us_0_2, ma_us_18_40, ven_us_0_2, ven_us_18_40, ma_ven_0_2, ma_ven_18_40), 
+           file="../tables/Supplementary Table 1.xlsx", 
+           sheetName = list("MA-US, infants", "MA-US, adults", "VEN-US, infants", 
+                            "VEN-US, adults", "MA-VEN, infants", "MA-VEN, adults"))
+```
+
+## 3.6 Supplementary Table 3
+
+```{r, message=FALSE, warning=FALSE, comment=NA}
+# Bacteroidetes - Firmicutes
+BFratio_summary = function(eval_data, country, age){
+  BFdiff=eval_data%>%dplyr::select(phylum, log.fold.change, se)%>%
+    filter(phylum%in%c("p__Bacteroidetes", "p__Firmicutes"))
+
+  diff_mean=BFdiff%>%filter(phylum == "p__Bacteroidetes")%>%.$log.fold.change-
+    BFdiff%>%filter(phylum == "p__Firmicutes")%>%.$log.fold.change
+  diff_se=sqrt(BFdiff%>%filter(phylum == "p__Bacteroidetes")%>%.$se%>%.^2+
+    BFdiff%>%filter(phylum == "p__Firmicutes")%>%.$se%>%.^2)
+  diff_p=2*pnorm(abs(diff_mean/diff_se), mean=0, sd=1, lower.tail = F)
+  ci_lo=diff_mean-1.96*diff_se
+  ci_up=diff_mean+1.96*diff_se
+  
+  BFdiff=signif(c(diff_mean, diff_se, diff_p, ci_lo, ci_up), 2)
+  BFdiff=c(country, age, BFdiff)
+  return(BFdiff)
+}
+
+country.list = rep(c("MA - US", "VEN - US", "MA - VEN"), 2)
+age.list = rep(c("Infants", "Adults"), each = 3)
+eval.data.list = list(ma_us_0_2, ven_us_0_2, ma_ven_0_2, ma_us_18_40, ven_us_18_40, ma_ven_18_40)
+
+BFres.list = vector(mode = "list", length = 6)
+for (i in 1:6) {
+  country = country.list[i]
+  age = age.list[i]
+  eval.data = eval.data.list[[i]]
+  BFres.list[[i]] = BFratio_summary(eval.data, country, age)
+}
+
+BFres = as.data.frame(Reduce('rbind', BFres.list), stringsAsFactors = F)
+rownames(BFres)=NULL
+colnames(BFres)=c("country", "age", "log.fold.change", "se", "p.value", "ci.lo", "ci.up")
+BFres$age = factor(BFres$age, levels = c("Infants", "Adults"))
+
+pander(BFres)
+```
+
+## 3.7 Fig. 5b
+
+```{r, message=FALSE, warning=FALSE, comment=NA}
+dat.fig.diff=BFres
+dat.fig.diff$log.fold.change=as.numeric(dat.fig.diff$log.fold.change)
+dat.fig.diff$ci.lo=as.numeric(dat.fig.diff$ci.lo)
+dat.fig.diff$ci.up=as.numeric(dat.fig.diff$ci.up)
+dat.fig.diff$p.value=as.numeric(dat.fig.diff$p.value)
+dat.fig.diff=dat.fig.diff%>%mutate(star=ifelse(p.value<.001, "***", 
+                                               ifelse(p.value<.01, "**",
+                                                      ifelse(p.value<.05, "*", ""))))
+
+p=ggplot(dat.fig.diff, aes(x=country, y=log.fold.change, ymin=ci.lo, ymax=ci.up, group=age)) + 
+  geom_bar(aes(fill=age), 
+           stat="identity", width=0.4, position=position_dodge())+
+  geom_errorbar(width=.2, size=.25, position=position_dodge(width = .4))+
+  geom_abline(slope = 0, intercept = 0, linetype="dashed", alpha=0.5)+
+  labs(x=NULL, y="Log Fold Change (Bacteroidetes - Firmicutes)")+coord_flip()+
+  scale_fill_discrete(name="")+
+  scale_x_discrete(limits = c("MA - VEN", "VEN - US", "MA - US"))+
+  theme_bw()+
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_rect(colour = "black"))+
+  geom_text(aes(y=log.fold.change+2.5*sign(log.fold.change), label=star), 
+            vjust=.7, color="black", position=position_dodge(width = .5))
+ggarrange(p, labels = "b")
+ggsave("../figures/Figure 5b.pdf", width=6.25, height=5, units='in')
+ggsave("../figures/Figure 5b.jpeg", width=6.25, height=5, units='in', dpi = 300)
+```
+
+# Session information
+
+```{r, message=FALSE, warning=FALSE, comment=NA}
+sessionInfo()
+devtools::session_info()
+```
+

@@ -43,9 +43,9 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %do% {
   
   # Data generation
   low.abn=50; med.abn=200; high.abn=10000; struc.zero.prop=0.20; out.zero.prop=0.05
-  test.dat=abn.tab.gen(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.abn,
-                       prop.diff, abn.seed, obs.seed, struc.zero.prop, out.zero.prop,
-                       samp.frac.var)
+  test.dat=abn.tab.gen1(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.abn,
+                        prop.diff, abn.seed, obs.seed, struc.zero.prop, out.zero.prop,
+                        samp.frac.var)
   
   meta.data=data.frame(group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
   countdata=test.dat$obs.abn
@@ -75,4 +75,4 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %do% {
 end_time <- Sys.time()
 end_time - start_time
 
-write_csv(data.frame(simlist), "fdr_power_wilcox_tss_large.csv")
+write_csv(data.frame(simlist), "fdr_power_wilcox_tss_small.csv")

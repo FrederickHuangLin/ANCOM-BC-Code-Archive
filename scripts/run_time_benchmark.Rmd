@@ -19,124 +19,22 @@ panderOptions('table.emphasize.rownames', FALSE)
 
 source("ancom_bc_v1.0.R")
 source("ancom_v1.0.R")
+source("sim_data_poi_gam_two_grp.R")
 ```
 
-# 1. Generate Simulation Data
+# 1. Running Time Comparison
 
-```{r, message=FALSE, warning=FALSE, comment=NA}
-abn.tab.gen=function(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs.seed, 
-                     struc.zero.prop, out.zero.prop, library.size){
-  # Total number of samples
-  n.samp=n.samp.grp1+n.samp.grp2
-  
-  set.seed(abn.seed) # This seed is used to control whether you would like to have the same population
-  low.prop=0.6 # Proportion of low abundance 
-  med.prop=0.3 # Proportion of medium abundance
-  hi.prop=0.1  # Proportion of high abundance
-  # Indices for taxa abundance 
-  index=sample(c(1, 2, 3), n.taxa, replace = T, prob = c(low.prop, med.prop, hi.prop)) 
-  
-  # Poisson parameters
-  lambda=rep(NA, n.taxa)
-  lambda[which(index==1)]=rgamma(length(which(index==1)), shape=50, rate=1)
-  lambda[which(index==2)]=rgamma(length(which(index==2)), shape=200, rate=1)
-  lambda[which(index==3)]=rgamma(length(which(index==3)), shape=10000, rate=1)
-  
-  # Which taxa are differentially abundant
-  diff.ind=rep(0, n.taxa)
-  # Group1 is higher than group2
-  diff1.ind=sample(c(1:n.taxa), floor(n.taxa*prop.diff), replace=FALSE)
-  diff.ind[diff1.ind]=1
-  # Group2 is higher than group1
-  wt=runif(1, 0, 1)
-  diff2.ind=sample(diff1.ind, wt*length(diff1.ind), replace=FALSE)
-  diff.ind[diff2.ind]=2
-  # Structural zeros
-  diff3.ind=sample(which(diff.ind==0), struc.zero.prop*length(which(diff.ind==0)), replace = FALSE)
-  diff.ind[diff3.ind]=-1
-  
-  # Signal size
-  effect.size=rep(1, n.taxa)
-  effect.size[diff1.ind]=runif(length(diff1.ind), 1, 10)
-  effect.size[diff2.ind]=runif(length(diff2.ind), 0.1, 1)
-  effect.size[diff3.ind]=0
-  names(effect.size)=paste0("taxon", seq(n.taxa))
-  
-  # Abundance template
-  temp.grp1=round(lambda*effect.size)
-  temp.grp2=round(lambda)
-  for (i in which(effect.size!=1)) {
-    if(temp.grp1[i]==temp.grp2[i]) temp.grp1[i]=temp.grp1[i]+1
-  }
-  temp.dat=data.frame(temp.grp1, temp.grp2, effect.size)
-  rownames(temp.dat)=paste0("taxon", seq(n.taxa))
-  
-  # Abundance table in the ecosystem
-  abn.mat=matrix(0, ncol=n.samp, nrow=n.taxa)
-  for(i in 1:n.taxa){
-    abn.mat[i, ]=c(rpois(n.samp.grp1, temp.grp1[i]), rpois(n.samp.grp2, temp.grp2[i]))
-  }
-  # Outlier zeros
-  out.ind=rep(0, n.taxa); out.ind[sample(seq(n.taxa), out.zero.prop*n.taxa, replace = F)]=1
-  names(out.ind)=paste0("taxon", seq(n.taxa))
-  abn.mat[which(out.ind==1), sample(seq(n.samp), out.zero.prop*n.samp, replace = F)]=0
-  
-  abn.total=colSums(abn.mat)
-  names(abn.total)=paste0("sub", seq(n.samp))
-  
-  # Number of taxa that are sampled for each subject
-  if(library.size=="large"){
-    depth=1/runif(n.samp, 5, 10)
-    obs.total=round(max(abn.total)*depth)
-  }else if(library.size=="small"){
-    depth=1/sample(c(runif(n.samp, 10, 50), runif(n.samp, 100, 500)), n.samp, replace = T)
-    obs.total=round(max(abn.total)*depth)
-  }
-  names(obs.total)=paste0("sub", seq(n.samp))
-  
-  # Specimen abundance
-  set.seed(obs.seed)
-  obs.list=lapply(1:n.samp, function(i) 
-    phyloseq:::rarefaction_subsample(x=abn.mat[, i], sample.size=obs.total[i]))
-  obs.mat=Reduce('cbind', obs.list)
-  
-  # Prepare output data sets
-  abn.dat=data.frame(abn.mat, row.names = NULL)
-  rownames(abn.dat)=paste0("taxon", seq(n.taxa))
-  colnames(abn.dat)=paste0("sub", seq(n.samp))
-  
-  obs.dat=data.frame(obs.mat, row.names = NULL)
-  rownames(obs.dat)=paste0("taxon", seq(n.taxa))
-  colnames(obs.dat)=paste0("sub", seq(n.samp))
-  
-  grp.ind=c(rep(1, n.samp.grp1), rep(2, n.samp.grp2))
-  names(grp.ind)=paste0("sub", seq(n.samp))
-  
-  names(diff.ind)=paste0("taxon", seq(n.taxa))
-  
-  c.mult=obs.total/abn.total
-  names(c.mult)=paste0("sub", seq(n.samp))
-  
-  test.data=list(temp.dat, abn.dat, obs.dat, effect.size, grp.ind, 
-                 diff.ind, out.ind, c.mult, abn.total, obs.total)
-  names(test.data)=c("template", "pop.abn", "obs.abn", "effect.size", "grp", 
-                     "diff.taxa", "outlier", "mult", "abn.total", "obs.total")
-  return(test.data)
-}
-```
-
-# 2. Running Time Comparison
-
-## 2.1 # taxa = 500
+## 1.1 # taxa = 500
 
 ```{r taxa500, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
 # Paras for data generation
-n.taxa=500; n.samp.grp1=30; n.samp.grp2=30; prop.diff=0.25
-abn.seed=123; obs.seed=124; library.size="small"
+n.taxa=500; n.samp.grp1=30; n.samp.grp2=30; low.abn=50; med.abn=200; high.abn=10000; prop.diff=0.25
+abn.seed=123; obs.seed=124; struc.zero.prop=0.20; out.zero.prop=0.05; samp.frac.var="large"
 
 # Data generation
-test.dat=abn.tab.gen(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs.seed, 
-                     struc.zero.prop=0.2, out.zero.prop=0.05, library.size)
+test.dat=abn.tab.gen1(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.abn, 
+                      prop.diff, abn.seed, obs.seed, struc.zero.prop, out.zero.prop,
+                      samp.frac.var="large")
 obs.abn=test.dat$obs.abn
 meta.data=cbind(Sample.ID=paste0("sub", seq(n.samp.grp1+n.samp.grp2)), 
                 group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
@@ -177,16 +75,17 @@ end_time <- Sys.time()
 run_time_ANCOM1=difftime(end_time, start_time, units="mins")
 ```
 
-## 2.2 # taxa = 1000
+## 1.2 # taxa = 1000
 
 ```{r taxa1000, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
 # Paras for data generation
-n.taxa=1000; n.samp.grp1=30; n.samp.grp2=30; prop.diff=0.25
-abn.seed=123; obs.seed=124; library.size="small"
+n.taxa=1000; n.samp.grp1=30; n.samp.grp2=30; low.abn=50; med.abn=200; high.abn=10000; prop.diff=0.25
+abn.seed=123; obs.seed=124; struc.zero.prop=0.20; out.zero.prop=0.05; samp.frac.var="large"
 
 # Data generation
-test.dat=abn.tab.gen(n.taxa, n.samp.grp1, n.samp.grp2, prop.diff, abn.seed, obs.seed, 
-                     struc.zero.prop=0.2, out.zero.prop=0.05, library.size)
+test.dat=abn.tab.gen1(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.abn, 
+                      prop.diff, abn.seed, obs.seed, struc.zero.prop, out.zero.prop,
+                      samp.frac.var="large")
 obs.abn=test.dat$obs.abn
 meta.data=cbind(Sample.ID=paste0("sub", seq(n.samp.grp1+n.samp.grp2)), 
                 group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))

@@ -48,9 +48,9 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %dopar% {
   
   # Data generation
   low.abn=50; med.abn=200; high.abn=10000; struc.zero.prop=0.20; out.zero.prop=0.05
-  test.dat=abn.tab.gen(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.abn,
-                       prop.diff, abn.seed, obs.seed, struc.zero.prop, out.zero.prop,
-                       samp.frac.var)
+  test.dat=abn.tab.gen1(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.abn,
+                        prop.diff, abn.seed, obs.seed, struc.zero.prop, out.zero.prop,
+                        samp.frac.var)
   obs.abn=test.dat$obs.abn
   meta.data=cbind(Sample.ID=paste0("sub", seq(n.samp.grp1+n.samp.grp2)), 
                   group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
@@ -66,7 +66,7 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %dopar% {
   struc.zero=pre.process$structure.zeros
   
   # Paras for ANCOM-BC
-  grp.name=group.name; grp.ind=group.ind; adj.method="BH"
+  grp.name=group.name; grp.ind=group.ind; adj.method="bonferroni"
   tol.EM=1e-5; max.iterNum=100; perNum=1000; alpha=0.05
   
   # Run ANCOM-BC
@@ -93,4 +93,4 @@ end_time <- Sys.time()
 end_time - start_time
 
 stopCluster(myCluster)
-write_csv(data.frame(simlist), "fdr_power_ancom_bc_large.csv")
+write_csv(data.frame(simlist), "fdr_power_ancom_bc_small.csv")
