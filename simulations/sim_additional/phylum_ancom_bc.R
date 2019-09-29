@@ -6,7 +6,7 @@ source("sim_data_poi_gam_two_grp.R")
 n.taxa=10; samp.frac.var="large"; n.samp=c("20_30", "50_50")
 
 # The proportion of differentially abundant taxa
-prop.diff=c(0.25, 0.50, 0.75)
+prop.diff=0.25
 
 # Set seeds
 iterNum=100
@@ -68,7 +68,7 @@ simlist=foreach(i = simparams.list, .combine = 'cbind') %dopar% {
   struc.zero=pre.process$structure.zeros
   
   # Paras for ANCOM-BC
-  grp.name=group.name; grp.ind=group.ind; adj.method="BH"
+  grp.name=group.name; grp.ind=group.ind; adj.method="bonferroni"
   tol.EM=1e-5; max.iterNum=100; perNum=1000; alpha=0.05
   
   # Run ANCOM-BC

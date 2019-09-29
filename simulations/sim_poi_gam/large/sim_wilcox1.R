@@ -5,7 +5,7 @@ source("sim_data_poi_gam_two_grp.R")
 n.taxa=1000; samp.frac.var="large"; n.samp=c("20_30", "50_50")
 
 # The proportion of differentially abundant taxa
-prop.diff=c(0.05, 0.25, 0.50, 0.75)
+prop.diff=c(0.05, 0.15, 0.25)
 
 # Set seeds
 iterNum=100

@@ -15,7 +15,7 @@ template = taxa_sums(pseq.prune)
 n.taxa=1000; n.samp=c("20_30", "50_50")
 
 # The proportion of differentially abundant taxa
-prop.diff=c(0.05, 0.25, 0.50, 0.75)
+prop.diff=c(0.05, 0.15, 0.25)
 
 # Set seeds
 iterNum=100
