@@ -68,7 +68,7 @@ library(nloptr)
 
 ## Flowchart of ANCOM-BC
 
-![Flow Chart](/demos/flowchart.jpg=50x100)
+![Flow Chart](/demos/flowchart.jpg =50x100)
 
 ## Examples
 
