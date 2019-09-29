@@ -56,12 +56,12 @@ library(nloptr)
 #### Value:
 *	```feature.table```: Data frame or matrix. Return the input ```feature.table```.
 *	```res```: Data frame. The primary result of ANCOM-BC consisting of: 
-  * ```mean.difference```: Numeric. The estimated mean difference of absolute abundance between groups in log scale;
-  * ```se```: Numeric. The standard error of ```mean.difference```;
-  * ```W```: Numeric. ```mean.difference/se```, which is the test statistic of ANCOM-BC.
-  * ```p.val```: Numeric. P-value obtained from two-sided Z-test using the test statistic ```W```.
-  * ```q.val```. Numeric. Q-value obtained by applying ```adj.method``` to ```p-val```.
-  * ```diff.abn```. Logical. TRUE if the taxon has ```q.val``` less than ```alpha```.
+    * ```mean.difference```: Numeric. The estimated mean difference of absolute abundance between groups in log scale;
+    * ```se```: Numeric. The standard error of ```mean.difference```;
+    * ```W```: Numeric. ```mean.difference/se```, which is the test statistic of ANCOM-BC.
+    * ```p.val```: Numeric. P-value obtained from two-sided Z-test using the test statistic ```W```.
+    * ```q.val```. Numeric. Q-value obtained by applying ```adj.method``` to ```p-val```.
+    * ```diff.abn```. Logical. TRUE if the taxon has ```q.val``` less than ```alpha```.
 *	```d```: A numeric vector. Estimated sampling fractions in log scale.
 *	```mu```: A numeric vector. Estimated log mean absolute abundance for each group.
 *	```bias.est```: Numeric. Estimated mean difference of log sampling fractions between groups through E-M algorithm.
