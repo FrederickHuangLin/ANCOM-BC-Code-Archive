@@ -23,7 +23,7 @@ library(nloptr)
 *	```meta.data```: Data frame or matrix of all variables and covariates of interest.
 *	```sample.var```: Character. The name of column storing sample IDs.
 *	```group.var```: Character. The name of the main variable of interest. ANCOM-BC v1.0 only supports discrete ```group.var``` and aims to compare the change of absolute abundance across different levels of ```group.var```.
-*	```zero.cut```: Numeric fraction. Taxa with proportion of zeroes greater than ```zero.cut``` are not included in the analysis.
+*	```zero.cut```: Numeric fraction between 0 and 1. Taxa with proportion of zeroes greater than ```zero.cut``` are not included in the analysis.
 * ```lib.cut```: Numeric. Samples with library size less than ```lib.cut``` are not included in the analysis.
 *	```neg.lb```: Logical. TRUE indicates a taxon would be classified as a structural zero in an experimental group using its asymptotic lower bound.
 
