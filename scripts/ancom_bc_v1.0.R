@@ -126,7 +126,7 @@ feature_table_pre_process = function(feature.table, meta.data, sample.var, group
 }
 
 # ANCOM-BC main function
-ANCOM_BC = function(feature.table, grp.name, grp.ind, struc.zero, adj.method = "BH", 
+ANCOM_BC = function(feature.table, grp.name, grp.ind, struc.zero, adj.method = "bonferroni", 
                     tol.EM = 1e-5, max.iterNum = 100, perNum = 1000, alpha = 0.05){
   n.taxa.raw = nrow(feature.table)
   taxa.id.raw = rownames(feature.table)
