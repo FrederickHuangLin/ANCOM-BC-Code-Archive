@@ -23,16 +23,16 @@ library(nloptr)
 *	```meta.data```: Data frame or matrix of all variables and covariates of interest.
 *	```sample.var```: Character. The name of column storing sample IDs.
 *	```group.var```: Character. The name of the main variable of interest. ANCOM-BC v1.0 only supports discrete ```group.var``` and aims to compare the change of absolute abundance across different levels of ```group.var```.
-*	```zero.cut```: Numeric fraction between 0 and 1. Taxa with proportion of zeroes greater than ```zero.cut``` are not included in the analysis.
+*	```zero.cut```: Numerical fraction between 0 and 1. Taxa with proportion of zeroes greater than ```zero.cut``` are not included in the analysis.
 * ```lib.cut```: Numeric. Samples with library size less than ```lib.cut``` are not included in the analysis.
-*	```neg.lb```: Logical. TRUE indicates a taxon would be classified as a structural zero in an experimental group using its asymptotic lower bound.
+*	```neg.lb```: Logical. TRUE indicates a taxon would be classified as a structural zero in the corresponding experimental group using its asymptotic lower bound.
 
 #### Value
 
 * ```feature.table```: A data frame of pre-processed OTU table.
 *	```library.size```: A numeric vector of library sizes after pre-processing.
 *	```group.name```: A character vector of levels of ```group.var```.
-*	```group.ind```: A numeric vector. Each sample is assigned a number to indicate its group label for better internal process.
+*	```group.ind```: A numeric vector. Each sample is assigned to a number indicating its group label for better internal process.
 *	```structure.zeros```: A matrix consists of 0 and 1s with 1 indicating the taxon is identified as a structural zero in the corresponding group.
 
 ### ANCOM-BC main function
@@ -45,22 +45,22 @@ library(nloptr)
 
 *	```feature.table```: Data frame or matrix representing the pre-processed OTU table with samples in rows and OTUs (or taxa) in columns. 
 *	```grp.name```: A character vector indicating the levels of group. 
-*	```grp.ind```: A numeric vector indicating group assignment for each sample. 1 corresponds to the 1st level of ```grp.name```, 2 corresponds to the 2nd level of ```grp.name``` etc.
+*	```grp.ind```: A numeric vector indicating group assignment for each sample. 1 corresponds to the 1st level of ```grp.name```, 2 corresponds to the 2nd level of ```grp.name```, etc.
 *	```struc.zero```: A matrix consists of 0 and 1s with 1 indicating the taxon is identified as a structural zero in the corresponding group.
 *	```adj.method```: Character. Returns p-values adjusted using the specified method, including ```"holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none"```.
 *	```tol.EM```: Numeric. The iteration convergence tolerance for E-M algorithm.
 *	```max.iterNum```: Numeric. The maximum number of iterations for E-M algorithm.
-* ```perNum```: Numeric. The maximum number of permutations. It is active only if there are more than 2 groups.
+* ```perNum```: Numeric. The maximum number of permutations. This argument is active only if there exist more than 2 groups.
 *	```alpha```: Numeric. Level of significance.
 
 #### Value:
-*	```feature.table```: Data frame or matrix. Return the input feature.table.
+*	```feature.table```: Data frame or matrix. Return the input ```feature.table```.
 *	```res```: Data frame. The primary result of ANCOM-BC consisting of: 
   * ```mean.difference```: Numeric. The estimated mean difference of absolute abundance between groups in log scale;
   * ```se```: Numeric. The standard error of ```mean.difference```;
   * ```W```: Numeric. ```mean.difference/se```, which is the test statistic of ANCOM-BC.
-  * ```p.val```: Numeric. P-value obtained from two-sided asymptotic Z-test using the test statistic ```W```.
-  * ```q.val```. Numeric. Q-value obtained by applying adj.method to ```p-val```.
+  * ```p.val```: Numeric. P-value obtained from two-sided Z-test using the test statistic ```W```.
+  * ```q.val```. Numeric. Q-value obtained by applying ```adj.method``` to ```p-val```.
   * ```diff.abn```. Logical. TRUE if the taxon has ```q.val``` less than ```alpha```.
 *	```d```: A numeric vector. Estimated sampling fractions in log scale.
 *	```mu```: A numeric vector. Estimated log mean absolute abundance for each group.
