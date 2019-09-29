@@ -11,7 +11,7 @@ library(nloptr)
 
 ## Instructions for use
 
-### Data preprocessing
+### Data preprocess
 
 #### Usage
 
@@ -65,6 +65,10 @@ library(nloptr)
 *	```d```: A numeric vector. Estimated sampling fractions in log scale.
 *	```mu```: A numeric vector. Estimated log mean absolute abundance for each group.
 *	```bias.est```: Numeric. Estimated mean difference of log sampling fractions between groups through E-M algorithm.
+
+## Flowchart of ANCOM-BC
+
+![Flow Chart](/demos/flowchart.png)
 
 ## Examples
 
