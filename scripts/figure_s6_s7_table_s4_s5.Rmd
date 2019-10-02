@@ -1438,7 +1438,7 @@ ggsave("../figures/Figure S7a.jpeg", width=6.25, height=5, units='in', dpi = 300
 ### 2.32 Fig. S7b
 
 ```{r, message=FALSE, warning=FALSE, comment=NA}
-p=ggplot(dat.fig, aes(x=prop.diff, y=power, fill=method)) +
+p2=ggplot(dat.fig, aes(x=prop.diff, y=power, fill=method)) +
   scale_y_continuous(breaks = seq(0.2, 1, 0.2), limits = c(0, 1))+
   coord_flip()+facet_grid(.~n.samp.grp)+
   geom_bar(stat="identity", position=position_dodge())+
@@ -1451,7 +1451,7 @@ p=ggplot(dat.fig, aes(x=prop.diff, y=power, fill=method)) +
         plot.title=element_text(hjust = 0.5),
         legend.position = "bottom")+
   guides(fill=guide_legend(nrow=2, byrow=TRUE))
-ggarrange(p, labels = "b")
+ggarrange(p2, labels = "b")
 ggsave("../figures/Figure S7b.pdf", width=6.25, height=5, units='in')
 ggsave("../figures/Figure S7b.jpeg", width=6.25, height=5, units='in', dpi = 300)
 ```
