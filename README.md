@@ -1,5 +1,6 @@
 # User Manual for ANCOM-BC v1.0
 [![DOI](https://zenodo.org/badge/198737095.svg)](https://zenodo.org/badge/latestdoi/198737095)
+
 The current code implements ANCOM-BC in cross-sectional datasets for comparing the change of absolute abundance for each taxon among different experimental groups. 
 
 ## R-package dependencies
