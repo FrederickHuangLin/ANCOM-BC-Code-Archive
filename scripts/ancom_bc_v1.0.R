@@ -119,6 +119,10 @@ feature_table_pre_process = function(feature.table, meta.data, sample.var, group
   rownames(struc.zero) = taxa.id
   colnames(struc.zero) = paste0("structural.zero (", levels(group), ")")
   
+  # Entries considered to be structural zeros are set to be 0s
+  ind.zero = struc.zero[, rep(1:n.grp, times = n.samp.grp)]
+  feature.table = feature.table * (1 - ind.zero)
+  
   # 6. Return results
   res = list(feature.table = feature.table, library.size = library.size, 
              group.name = group.name, group.ind = grp.ind, structure.zeros = struc.zero)
@@ -346,8 +350,7 @@ ANCOM_BC = function(feature.table, grp.name, grp.ind, struc.zero, adj.method = "
   if (length(comp.taxa.pos) < n.taxa.raw) {
     O.incomp = feature.table[-comp.taxa.pos, ]
     ind.incomp = struc.zero[-comp.taxa.pos, rep(1:n.grp, times = n.samp.grp)]
-    O.adj.incomp = O.incomp * (1 - ind.incomp) # Entries considered to be structural zeros are set to be 0s
-    y.incomp = log(O.adj.incomp + 1)
+    y.incomp = log(O.incomp + 1)
     d.incomp = t(t(1 - ind.incomp) * d) # Sampling fractions for entries considered to be structural zeros are set to be 0s
     y.adj.incomp = y.incomp - d.incomp
     mu.incomp = t(apply(y.adj.incomp, 1, function(i) 
