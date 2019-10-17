@@ -31,15 +31,17 @@ source("sim_data_poi_gam_two_grp.R")
 
 ```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
 n.taxa=500; n.samp.grp1=30; n.samp.grp2=30; low.abn=50; med.abn=200; high.abn=10000
-prop.diff=0.25; abn.seed=123; obs.seed=124; struc.zero.prop=0.2; out.zero.prop=0.05
-var.samp.frac="large"
+prop.diff=0.25; abn.seed=12; obs.seed=13; struc.zero.prop=0; out.zero.prop=0
+balanced.micro.load = FALSE; balanced.lib.size = TRUE; samp.frac = "large"
 
 test.dat=abn.tab.gen1(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.abn, prop.diff, 
-                      abn.seed, obs.seed, struc.zero.prop, out.zero.prop, var.samp.frac)
+                      abn.seed, obs.seed, struc.zero.prop, out.zero.prop, 
+                      balanced.micro.load, balanced.lib.size, samp.frac)
 obs.abn=test.dat$obs.abn
 meta.data=cbind(Sample.ID=paste0("sub", seq(n.samp.grp1+n.samp.grp2)), 
                 group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
 
+# ANCOM-BC
 # Pre-processing
 feature.table=obs.abn; sample.var="Sample.ID"; group.var="group"
 zero.cut=0.90; lib.cut=1000; neg.lb=FALSE
@@ -56,19 +58,33 @@ tol.EM=1e-5; max.iterNum=100; perNum = 1000; alpha=0.05
 out<-try(ANCOM_BC(feature.table, grp.name, grp.ind, struc.zero, adj.method, 
                   tol.EM, max.iterNum, perNum, alpha), silent = T)
 
-# ANCOM.BC: Two-stage bias correction
 if (inherits(out, "try-error")){
   ANCOM.BC=rep(NA, n.samp.grp1+n.samp.grp2)
 }else{ANCOM.BC=out$d}
 sub.keep=match(names(ANCOM.BC), colnames(obs.abn))
 
 # True value
-ACTUAL=log(test.dat$mult); ACTUAL=ACTUAL[sub.keep]
+ACTUAL=log(test.dat$samp.frac); ACTUAL=ACTUAL[sub.keep]
 
 countdata=test.dat$obs.abn
 zero.threshold=0.90
 taxa.info.ind=apply(countdata, 1, function(x) sum(x==0)/ncol(countdata))
 countdata=countdata[which(taxa.info.ind<zero.threshold), ]+1L
+
+# UQ: Upper quartile normalization
+groupdata=factor(rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
+feature_table=countdata+1
+dds=edgeR::DGEList(counts = feature_table, group = groupdata)
+dds=edgeR::calcNormFactors(dds, method="upperquartile")
+UQ1=dds$samples$norm.factors*colSums(feature_table, na.rm = T); UQ1=log(UQ1)[sub.keep]
+UQ2=dds$samples$norm.factors; UQ2=log(UQ2)[sub.keep]
+
+# TMM: Trimed mean of m-values
+dds=edgeR::DGEList(counts = feature_table, group = groupdata)
+dds=edgeR::calcNormFactors(dds, method="TMM")
+TMM1=dds$samples$norm.factors*colSums(feature_table, na.rm = T); TMM1=log(TMM1)[sub.keep]
+TMM2=dds$samples$norm.factors; TMM2=log(TMM2)[sub.keep]
+
 # CSS: Cumulative-sum scaling
 meta.data=data.frame(group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
 rownames(meta.data)=paste0("sub", seq(n.samp.grp1+n.samp.grp2))
@@ -93,29 +109,20 @@ if (inherits(dds, "try-error")){
   MED=DESeq2::sizeFactors(dds)
   MED=log(MED)[sub.keep]}
 
-# UQ: Upper quartile normalization
-groupdata=factor(rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
-feature_table=countdata+1
-dds=edgeR::DGEList(counts = feature_table, group = groupdata)
-dds=edgeR::calcNormFactors(dds, method="upperquartile")
-UQ=dds$samples$norm.factors; UQ=log(UQ)[sub.keep]
-
-# TMM: Trimed mean of m-values
-dds=edgeR::DGEList(counts = feature_table, group = groupdata)
-dds=edgeR::calcNormFactors(dds, method="TMM")
-TMM=dds$samples$norm.factors; TMM=log(TMM)[sub.keep]
-
 # TSS: Total-sum scaling
 TSS=colSums(countdata, na.rm = T); TSS=log(TSS)[sub.keep]
 
-norm.df=data.frame(ACTUAL, ANCOM.BC, CSS, MED, UQ, TMM, TSS,
+norm.df=data.frame(ACTUAL, ANCOM.BC, UQ1, UQ2, TMM1, TMM2, CSS, MED, TSS,
                    group=rep(c("Group1", "Group2"), sapply(group.ind, length)))
 norm.df=norm.df%>%mutate(D.ANCOM.BC = ACTUAL - ANCOM.BC,
+                         D.UQ1 = ACTUAL - UQ1, D.UQ2 = ACTUAL - UQ2, 
+                         D.TMM1 = ACTUAL - TMM1, D.TMM2 = ACTUAL - TMM2,
                          D.CSS = ACTUAL - CSS, D.MED = ACTUAL - MED,
-                         D.UQ = ACTUAL - UQ, D.TMM = ACTUAL - TMM, D.TSS = ACTUAL - TSS,
+                         D.TSS = ACTUAL - TSS,
                          CD.ANCOM.BC = scale(D.ANCOM.BC, scale = F),
+                         CD.UQ1 = scale(D.UQ1, scale = F), CD.UQ2 = scale(D.UQ2, scale = F), 
+                         CD.TMM1 = scale(D.TMM1, scale = F), CD.TMM2 = scale(D.TMM2, scale = F),
                          CD.CSS = scale(D.CSS, scale = F), CD.MED = scale(D.MED, scale = F),
-                         CD.UQ = scale(D.UQ, scale = F), CD.TMM = scale(D.TMM, scale = F),
                          CD.TSS = scale(D.TSS, scale = F))
 write.csv(norm.df, file = "../data/sim_norm/norm_large.csv", row.names = F)
 ```
@@ -126,13 +133,19 @@ write.csv(norm.df, file = "../data/sim_norm/norm_large.csv", row.names = F)
 norm.df = read_csv("../data/sim_norm/norm_large.csv")
 p.df = norm.df%>%gather(key = "method", value = "value", CD.ANCOM.BC:CD.TSS)
 p.df$method = factor(p.df$method, 
-                     levels = c("CD.ANCOM.BC", "CD.CSS", "CD.MED", "CD.UQ", "CD.TMM", "CD.TSS"))
+                     levels = c("CD.ANCOM.BC", "CD.UQ1", "CD.TMM1", 
+                                "CD.CSS", "CD.MED", "CD.UQ2", "CD.TMM2", "CD.TSS"))
+norm.var = p.df%>%group_by(method)%>%
+  summarise(method.var = signif(var(value), 2))%>%
+  mutate(method.abb = c("ANCOM-BC", "ELib-UQ", "ELib-TMM", "CSS", "MED", "UQ", "TMM", "TSS"),
+         label = paste0(method.abb, " (", method.var, ")"))
 p=ggplot(p.df, aes(x=method, y=value, color=method))+ 
+  scale_y_continuous(breaks = seq(-0.4, 0.4, 0.2), limits = c(-0.6, 0.9))+
   geom_boxplot()+geom_hline(yintercept = 0, linetype="dotted")+
   geom_jitter(color="gray28", position=position_jitter(0.2), aes(shape=group))+
   scale_color_manual(name=NULL,
-                     label=c("ANCOM-BC", "CSS", "MED", "UQ", "TMM", "TSS"),
-                     values = gg_color_hue(6))+
+                     label=norm.var$label,
+                     values = gg_color_hue(8))+
   scale_shape_manual(name=NULL, values=c(1, 17))+
   labs(x="", y="Centered Deviance")+
   theme_bw()+
@@ -140,11 +153,11 @@ p=ggplot(p.df, aes(x=method, y=value, color=method))+
         panel.grid.minor = element_blank(),
         axis.ticks.x=element_blank(),
         axis.text.x = element_blank(),
-        legend.position = c(0.25, 0.85),
+        legend.position = c(0.36, 0.85),
         legend.direction = "horizontal", legend.box = "vertical")
 p
-ggsave("../figures/Figure 3.pdf", width=6.25, height=5, units='in')
-ggsave("../figures/Figure 3.jpeg", width=6.25, height=5, units='in', dpi = 300)
+ggsave("../figures/Figure 3.pdf", width=8.5, height=5, units='in')
+ggsave("../figures/Figure 3.jpeg", width=8.5, height=5, units='in', dpi = 300)
 ```
 
 # 2. Normalization Efficacy with the Presence of Moderate Variable Sampling Fractions
@@ -153,15 +166,17 @@ ggsave("../figures/Figure 3.jpeg", width=6.25, height=5, units='in', dpi = 300)
 
 ```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
 n.taxa=500; n.samp.grp1=30; n.samp.grp2=30; low.abn=50; med.abn=200; high.abn=10000
-prop.diff=0.25; abn.seed=123; obs.seed=124; struc.zero.prop=0.2; out.zero.prop=0.05
-var.samp.frac="moderate"
+prop.diff=0.25; abn.seed=12; obs.seed=13; struc.zero.prop=0; out.zero.prop=0
+balanced.micro.load = FALSE; balanced.lib.size = FALSE; samp.frac = "large"
 
 test.dat=abn.tab.gen1(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.abn, prop.diff, 
-                      abn.seed, obs.seed, struc.zero.prop, out.zero.prop, var.samp.frac)
+                      abn.seed, obs.seed, struc.zero.prop, out.zero.prop, 
+                      balanced.micro.load, balanced.lib.size, samp.frac)
 obs.abn=test.dat$obs.abn
 meta.data=cbind(Sample.ID=paste0("sub", seq(n.samp.grp1+n.samp.grp2)), 
                 group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
 
+# ANCOM-BC
 # Pre-processing
 feature.table=obs.abn; sample.var="Sample.ID"; group.var="group"
 zero.cut=0.90; lib.cut=1000; neg.lb=FALSE
@@ -178,19 +193,33 @@ tol.EM=1e-5; max.iterNum=100; perNum = 1000; alpha=0.05
 out<-try(ANCOM_BC(feature.table, grp.name, grp.ind, struc.zero, adj.method, 
                   tol.EM, max.iterNum, perNum, alpha), silent = T)
 
-# ANCOM.BC: Two-stage bias correction
 if (inherits(out, "try-error")){
   ANCOM.BC=rep(NA, n.samp.grp1+n.samp.grp2)
 }else{ANCOM.BC=out$d}
 sub.keep=match(names(ANCOM.BC), colnames(obs.abn))
 
 # True value
-ACTUAL=log(test.dat$mult); ACTUAL=ACTUAL[sub.keep]
+ACTUAL=log(test.dat$samp.frac); ACTUAL=ACTUAL[sub.keep]
 
 countdata=test.dat$obs.abn
 zero.threshold=0.90
 taxa.info.ind=apply(countdata, 1, function(x) sum(x==0)/ncol(countdata))
 countdata=countdata[which(taxa.info.ind<zero.threshold), ]+1L
+
+# UQ: Upper quartile normalization
+groupdata=factor(rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
+feature_table=countdata+1
+dds=edgeR::DGEList(counts = feature_table, group = groupdata)
+dds=edgeR::calcNormFactors(dds, method="upperquartile")
+UQ1=dds$samples$norm.factors*colSums(feature_table, na.rm = T); UQ1=log(UQ1)[sub.keep]
+UQ2=dds$samples$norm.factors; UQ2=log(UQ2)[sub.keep]
+
+# TMM: Trimed mean of m-values
+dds=edgeR::DGEList(counts = feature_table, group = groupdata)
+dds=edgeR::calcNormFactors(dds, method="TMM")
+TMM1=dds$samples$norm.factors*colSums(feature_table, na.rm = T); TMM1=log(TMM1)[sub.keep]
+TMM2=dds$samples$norm.factors; TMM2=log(TMM2)[sub.keep]
+
 # CSS: Cumulative-sum scaling
 meta.data=data.frame(group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
 rownames(meta.data)=paste0("sub", seq(n.samp.grp1+n.samp.grp2))
@@ -215,29 +244,20 @@ if (inherits(dds, "try-error")){
   MED=DESeq2::sizeFactors(dds)
   MED=log(MED)[sub.keep]}
 
-# UQ: Upper quartile normalization
-groupdata=factor(rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
-feature_table=countdata+1
-dds=edgeR::DGEList(counts = feature_table, group = groupdata)
-dds=edgeR::calcNormFactors(dds, method="upperquartile")
-UQ=dds$samples$norm.factors; UQ=log(UQ)[sub.keep]
-
-# TMM: Trimed mean of m-values
-dds=edgeR::DGEList(counts = feature_table, group = groupdata)
-dds=edgeR::calcNormFactors(dds, method="TMM")
-TMM=dds$samples$norm.factors; TMM=log(TMM)[sub.keep]
-
 # TSS: Total-sum scaling
 TSS=colSums(countdata, na.rm = T); TSS=log(TSS)[sub.keep]
 
-norm.df=data.frame(ACTUAL, ANCOM.BC, CSS, MED, UQ, TMM, TSS,
+norm.df=data.frame(ACTUAL, ANCOM.BC, UQ1, UQ2, TMM1, TMM2, CSS, MED, TSS,
                    group=rep(c("Group1", "Group2"), sapply(group.ind, length)))
 norm.df=norm.df%>%mutate(D.ANCOM.BC = ACTUAL - ANCOM.BC,
+                         D.UQ1 = ACTUAL - UQ1, D.UQ2 = ACTUAL - UQ2, 
+                         D.TMM1 = ACTUAL - TMM1, D.TMM2 = ACTUAL - TMM2,
                          D.CSS = ACTUAL - CSS, D.MED = ACTUAL - MED,
-                         D.UQ = ACTUAL - UQ, D.TMM = ACTUAL - TMM, D.TSS = ACTUAL - TSS,
+                         D.TSS = ACTUAL - TSS,
                          CD.ANCOM.BC = scale(D.ANCOM.BC, scale = F),
+                         CD.UQ1 = scale(D.UQ1, scale = F), CD.UQ2 = scale(D.UQ2, scale = F), 
+                         CD.TMM1 = scale(D.TMM1, scale = F), CD.TMM2 = scale(D.TMM2, scale = F),
                          CD.CSS = scale(D.CSS, scale = F), CD.MED = scale(D.MED, scale = F),
-                         CD.UQ = scale(D.UQ, scale = F), CD.TMM = scale(D.TMM, scale = F),
                          CD.TSS = scale(D.TSS, scale = F))
 write.csv(norm.df, file = "../data/sim_norm/norm_moderate.csv")
 ```
@@ -247,26 +267,32 @@ write.csv(norm.df, file = "../data/sim_norm/norm_moderate.csv")
 ```{r, message=FALSE, warning=FALSE, comment=NA}
 norm.df = read_csv("../data/sim_norm/norm_moderate.csv")
 p.df = norm.df%>%gather(key = "method", value = "value", CD.ANCOM.BC:CD.TSS)
-p.df$method = factor(p.df$method,
-                     levels = c("CD.ANCOM.BC", "CD.CSS", "CD.MED", "CD.UQ", "CD.TMM", "CD.TSS"))
+p.df$method = factor(p.df$method, 
+                     levels = c("CD.ANCOM.BC", "CD.UQ1", "CD.TMM1", 
+                                "CD.CSS", "CD.MED", "CD.UQ2", "CD.TMM2", "CD.TSS"))
+norm.var = p.df%>%group_by(method)%>%
+  summarise(method.var = signif(var(value), 2))%>%
+  mutate(method.abb = c("ANCOM-BC", "ELib-UQ", "ELib-TMM", "CSS", "MED", "UQ", "TMM", "TSS"),
+         label = paste0(method.abb, " (", method.var, ")"))
 p=ggplot(p.df, aes(x=method, y=value, color=method))+ 
+  scale_y_continuous(breaks = seq(-0.4, 0.4, 0.2), limits = c(-0.6, 0.9))+
   geom_boxplot()+geom_hline(yintercept = 0, linetype="dotted")+
   geom_jitter(color="gray28", position=position_jitter(0.2), aes(shape=group))+
   scale_color_manual(name=NULL,
-                     label=c("ANCOM-BC", "CSS", "MED", "UQ", "TMM", "TSS"),
-                     values = gg_color_hue(6))+
+                     label=norm.var$label,
+                     values = gg_color_hue(8))+
   scale_shape_manual(name=NULL, values=c(1, 17))+
-  labs(x="", y="Centered Difference")+
+  labs(x="", y="Centered Deviance")+
   theme_bw()+
   theme(panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         axis.ticks.x=element_blank(),
         axis.text.x = element_blank(),
-        legend.position = c(0.25, 0.85),
+        legend.position = c(0.36, 0.85),
         legend.direction = "horizontal", legend.box = "vertical")
 p
-ggsave("../figures/Figure S1.pdf", width=6.25, height=5, units='in')
-ggsave("../figures/Figure S1.jpeg", width=6.25, height=5, units='in', dpi = 300)
+ggsave("../figures/Figure S1.pdf", width=8.5, height=5, units='in')
+ggsave("../figures/Figure S1.jpeg", width=8.5, height=5, units='in', dpi = 300)
 ```
 
 # 3. Normalization Efficacy with the Presence of Small Variable Sampling Fractions
@@ -275,15 +301,17 @@ ggsave("../figures/Figure S1.jpeg", width=6.25, height=5, units='in', dpi = 300)
 
 ```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
 n.taxa=500; n.samp.grp1=30; n.samp.grp2=30; low.abn=50; med.abn=200; high.abn=10000
-prop.diff=0.25; abn.seed=123; obs.seed=124; struc.zero.prop=0.2; out.zero.prop=0.05
-var.samp.frac="small"
+prop.diff=0.25; abn.seed=12; obs.seed=13; struc.zero.prop=0; out.zero.prop=0
+balanced.micro.load = TRUE; balanced.lib.size = TRUE; samp.frac = "large"
 
 test.dat=abn.tab.gen1(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.abn, prop.diff, 
-                      abn.seed, obs.seed, struc.zero.prop, out.zero.prop, var.samp.frac)
+                      abn.seed, obs.seed, struc.zero.prop, out.zero.prop, 
+                      balanced.micro.load, balanced.lib.size, samp.frac)
 obs.abn=test.dat$obs.abn
 meta.data=cbind(Sample.ID=paste0("sub", seq(n.samp.grp1+n.samp.grp2)), 
                 group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
 
+# ANCOM-BC
 # Pre-processing
 feature.table=obs.abn; sample.var="Sample.ID"; group.var="group"
 zero.cut=0.90; lib.cut=1000; neg.lb=FALSE
@@ -300,19 +328,33 @@ tol.EM=1e-5; max.iterNum=100; perNum = 1000; alpha=0.05
 out<-try(ANCOM_BC(feature.table, grp.name, grp.ind, struc.zero, adj.method, 
                   tol.EM, max.iterNum, perNum, alpha), silent = T)
 
-# ANCOM.BC: Two-stage bias correction
 if (inherits(out, "try-error")){
   ANCOM.BC=rep(NA, n.samp.grp1+n.samp.grp2)
 }else{ANCOM.BC=out$d}
 sub.keep=match(names(ANCOM.BC), colnames(obs.abn))
 
 # True value
-ACTUAL=log(test.dat$mult); ACTUAL=ACTUAL[sub.keep]
+ACTUAL=log(test.dat$samp.frac); ACTUAL=ACTUAL[sub.keep]
 
 countdata=test.dat$obs.abn
 zero.threshold=0.90
 taxa.info.ind=apply(countdata, 1, function(x) sum(x==0)/ncol(countdata))
 countdata=countdata[which(taxa.info.ind<zero.threshold), ]+1L
+
+# UQ: Upper quartile normalization
+groupdata=factor(rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
+feature_table=countdata+1
+dds=edgeR::DGEList(counts = feature_table, group = groupdata)
+dds=edgeR::calcNormFactors(dds, method="upperquartile")
+UQ1=dds$samples$norm.factors*colSums(feature_table, na.rm = T); UQ1=log(UQ1)[sub.keep]
+UQ2=dds$samples$norm.factors; UQ2=log(UQ2)[sub.keep]
+
+# TMM: Trimed mean of m-values
+dds=edgeR::DGEList(counts = feature_table, group = groupdata)
+dds=edgeR::calcNormFactors(dds, method="TMM")
+TMM1=dds$samples$norm.factors*colSums(feature_table, na.rm = T); TMM1=log(TMM1)[sub.keep]
+TMM2=dds$samples$norm.factors; TMM2=log(TMM2)[sub.keep]
+
 # CSS: Cumulative-sum scaling
 meta.data=data.frame(group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
 rownames(meta.data)=paste0("sub", seq(n.samp.grp1+n.samp.grp2))
@@ -337,29 +379,20 @@ if (inherits(dds, "try-error")){
   MED=DESeq2::sizeFactors(dds)
   MED=log(MED)[sub.keep]}
 
-# UQ: Upper quartile normalization
-groupdata=factor(rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
-feature_table=countdata+1
-dds=edgeR::DGEList(counts = feature_table, group = groupdata)
-dds=edgeR::calcNormFactors(dds, method="upperquartile")
-UQ=dds$samples$norm.factors; UQ=log(UQ)[sub.keep]
-
-# TMM: Trimed mean of m-values
-dds=edgeR::DGEList(counts = feature_table, group = groupdata)
-dds=edgeR::calcNormFactors(dds, method="TMM")
-TMM=dds$samples$norm.factors; TMM=log(TMM)[sub.keep]
-
 # TSS: Total-sum scaling
 TSS=colSums(countdata, na.rm = T); TSS=log(TSS)[sub.keep]
 
-norm.df=data.frame(ACTUAL, ANCOM.BC, CSS, MED, UQ, TMM, TSS,
+norm.df=data.frame(ACTUAL, ANCOM.BC, UQ1, UQ2, TMM1, TMM2, CSS, MED, TSS,
                    group=rep(c("Group1", "Group2"), sapply(group.ind, length)))
 norm.df=norm.df%>%mutate(D.ANCOM.BC = ACTUAL - ANCOM.BC,
+                         D.UQ1 = ACTUAL - UQ1, D.UQ2 = ACTUAL - UQ2, 
+                         D.TMM1 = ACTUAL - TMM1, D.TMM2 = ACTUAL - TMM2,
                          D.CSS = ACTUAL - CSS, D.MED = ACTUAL - MED,
-                         D.UQ = ACTUAL - UQ, D.TMM = ACTUAL - TMM, D.TSS = ACTUAL - TSS,
+                         D.TSS = ACTUAL - TSS,
                          CD.ANCOM.BC = scale(D.ANCOM.BC, scale = F),
+                         CD.UQ1 = scale(D.UQ1, scale = F), CD.UQ2 = scale(D.UQ2, scale = F), 
+                         CD.TMM1 = scale(D.TMM1, scale = F), CD.TMM2 = scale(D.TMM2, scale = F),
                          CD.CSS = scale(D.CSS, scale = F), CD.MED = scale(D.MED, scale = F),
-                         CD.UQ = scale(D.UQ, scale = F), CD.TMM = scale(D.TMM, scale = F),
                          CD.TSS = scale(D.TSS, scale = F))
 write.csv(norm.df, file = "../data/sim_norm/norm_small.csv")
 ```
@@ -370,25 +403,31 @@ write.csv(norm.df, file = "../data/sim_norm/norm_small.csv")
 norm.df = read_csv("../data/sim_norm/norm_small.csv")
 p.df = norm.df%>%gather(key = "method", value = "value", CD.ANCOM.BC:CD.TSS)
 p.df$method = factor(p.df$method, 
-                     levels = c("CD.ANCOM.BC", "CD.CSS", "CD.MED", "CD.UQ", "CD.TMM", "CD.TSS"))
+                     levels = c("CD.ANCOM.BC", "CD.UQ1", "CD.TMM1", 
+                                "CD.CSS", "CD.MED", "CD.UQ2", "CD.TMM2", "CD.TSS"))
+norm.var = p.df%>%group_by(method)%>%
+  summarise(method.var = signif(var(value), 2))%>%
+  mutate(method.abb = c("ANCOM-BC", "ELib-UQ", "ELib-TMM", "CSS", "MED", "UQ", "TMM", "TSS"),
+         label = paste0(method.abb, " (", method.var, ")"))
 p=ggplot(p.df, aes(x=method, y=value, color=method))+ 
+  scale_y_continuous(breaks = seq(-0.4, 0.4, 0.2), limits = c(-0.6, 0.9))+
   geom_boxplot()+geom_hline(yintercept = 0, linetype="dotted")+
   geom_jitter(color="gray28", position=position_jitter(0.2), aes(shape=group))+
   scale_color_manual(name=NULL,
-                     label=c("ANCOM-BC", "CSS", "MED", "UQ", "TMM", "TSS"),
-                     values = gg_color_hue(6))+
+                     label=norm.var$label,
+                     values = gg_color_hue(8))+
   scale_shape_manual(name=NULL, values=c(1, 17))+
-  labs(x="", y="Centered Difference")+
+  labs(x="", y="Centered Deviance")+
   theme_bw()+
   theme(panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         axis.ticks.x=element_blank(),
         axis.text.x = element_blank(),
-        legend.position = c(0.25, 0.85),
+        legend.position = c(0.36, 0.85),
         legend.direction = "horizontal", legend.box = "vertical")
 p
-ggsave("../figures/Figure S2.pdf", width=6.25, height=5, units='in')
-ggsave("../figures/Figure S2.jpeg", width=6.25, height=5, units='in', dpi = 300)
+ggsave("../figures/Figure S2.pdf", width=8.5, height=5, units='in')
+ggsave("../figures/Figure S2.jpeg", width=8.5, height=5, units='in', dpi = 300)
 ```
 
 # Session information

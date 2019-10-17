@@ -10,7 +10,7 @@
 
 
 
-<meta name="date" content="2019-09-24" />
+<meta name="date" content="2019-10-16" />
 
 <title>Running Time Benchmark: ANCOM-BC vs ANCOM</title>
 
@@ -375,7 +375,7 @@ $(document).ready(function () {
 
 
 <h1 class="title toc-ignore">Running Time Benchmark: ANCOM-BC vs ANCOM</h1>
-<h4 class="date">September 24, 2019</h4>
+<h4 class="date">October 16, 2019</h4>
 
 </div>
 
@@ -385,13 +385,13 @@ $(document).ready(function () {
 <div id="taxa-500" class="section level2">
 <h2>1.1 # taxa = 500</h2>
 <pre class="r"><code># Paras for data generation
-n.taxa=500; n.samp.grp1=30; n.samp.grp2=30; low.abn=50; med.abn=200; high.abn=10000; prop.diff=0.25
-abn.seed=123; obs.seed=124; struc.zero.prop=0.20; out.zero.prop=0.05; samp.frac.var=&quot;large&quot;
+n.taxa = 500; n.samp.grp1 = 30; n.samp.grp2 = 30; low.abn = 50; med.abn = 200; high.abn = 10000 prop.diff = 0.25; abn.seed = 123; obs.seed = 124; struc.zero.prop = 0.20; out.zero.prop = 0.05
+balanced.micro.load = FALSE; balanced.lib.size = TRUE; samp.frac = &quot;small&quot;
 
 # Data generation
 test.dat=abn.tab.gen1(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.abn, 
                       prop.diff, abn.seed, obs.seed, struc.zero.prop, out.zero.prop,
-                      samp.frac.var=&quot;large&quot;)
+                      balanced.micro.load, balanced.lib.size, samp.frac)
 obs.abn=test.dat$obs.abn
 meta.data=cbind(Sample.ID=paste0(&quot;sub&quot;, seq(n.samp.grp1+n.samp.grp2)), 
                 group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
@@ -434,13 +434,13 @@ run_time_ANCOM1=difftime(end_time, start_time, units=&quot;mins&quot;)</code></p
 <div id="taxa-1000" class="section level2">
 <h2>1.2 # taxa = 1000</h2>
 <pre class="r"><code># Paras for data generation
-n.taxa=1000; n.samp.grp1=30; n.samp.grp2=30; low.abn=50; med.abn=200; high.abn=10000; prop.diff=0.25
-abn.seed=123; obs.seed=124; struc.zero.prop=0.20; out.zero.prop=0.05; samp.frac.var=&quot;large&quot;
+n.taxa = 1000; n.samp.grp1 = 30; n.samp.grp2 = 30; low.abn = 50; med.abn = 200; high.abn = 10000 prop.diff = 0.25; abn.seed = 123; obs.seed = 124; struc.zero.prop = 0.20; out.zero.prop = 0.05
+balanced.micro.load = FALSE; balanced.lib.size = TRUE; samp.frac = &quot;small&quot;
 
 # Data generation
 test.dat=abn.tab.gen1(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.abn, 
                       prop.diff, abn.seed, obs.seed, struc.zero.prop, out.zero.prop,
-                      samp.frac.var=&quot;large&quot;)
+                      balanced.micro.load, balanced.lib.size, samp.frac)
 obs.abn=test.dat$obs.abn
 meta.data=cbind(Sample.ID=paste0(&quot;sub&quot;, seq(n.samp.grp1+n.samp.grp2)), 
                 group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
@@ -570,7 +570,7 @@ loaded via a namespace (and not attached):
  collate  en_US.UTF-8                 
  ctype    en_US.UTF-8                 
  tz       America/New_York            
- date     2019-09-24                  
+ date     2019-10-16                  
 
 ─ Packages ──────────────────────────────────────────────────────────────
  package        * version  date       lib source        

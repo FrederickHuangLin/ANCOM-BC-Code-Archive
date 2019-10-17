@@ -2,7 +2,9 @@ library(phyloseq)
 
 abn.tab.gen1=function(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.abn,
                       prop.diff, abn.seed, obs.seed, struc.zero.prop, out.zero.prop,
-                      samp.frac.var=c("large", "moderate", "small")){
+                      balanced.micro.load = c(TRUE, FALSE),
+                      balanced.lib.size = c(TRUE, FALSE),
+                      samp.frac = c("large", "small")){
   # Total number of samples
   n.samp=n.samp.grp1+n.samp.grp2
   
@@ -19,8 +21,8 @@ abn.tab.gen1=function(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.a
   lambda[which(index==2)]=rgamma(length(which(index==2)), shape=med.abn, rate=1)
   lambda[which(index==3)]=rgamma(length(which(index==3)), shape=high.abn, rate=1)
   
-  if(samp.frac.var=="small"){
-    # Construct balanced mean absolute abundance in the ecosystem
+  if(balanced.micro.load==TRUE){
+    # Construct balanced microbial load in the ecosystem
     
     # Which taxa are differentially abundant
     diff.ind=rep(0, n.taxa)
@@ -50,7 +52,7 @@ abn.tab.gen1=function(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.a
     temp.dat=data.frame(temp.grp1, temp.grp2, effect.size)
     rownames(temp.dat)=paste0("taxon", seq(n.taxa))
   }else{
-    # Construct unbalanced mean absolute abundance in the ecosystem
+    # Construct unbalanced microbial in the ecosystem
     
     # Which taxa are differentially abundant
     diff.ind=rep(0, n.taxa)
@@ -82,7 +84,7 @@ abn.tab.gen1=function(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.a
     rownames(temp.dat)=paste0("taxon", seq(n.taxa))
   }
   
-  # Absolute abundance in the ecosystem
+  # Absolute abundance in ecosystems
   abn.mat=matrix(0, ncol=n.samp, nrow=n.taxa)
   for(i in 1:n.taxa){
     abn.mat[i, ]=c(rpois(n.samp.grp1, temp.grp1[i]), rpois(n.samp.grp2, temp.grp2[i]))
@@ -97,21 +99,25 @@ abn.tab.gen1=function(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.a
   names(abn.total)=paste0("sub", seq(n.samp))
   abn.prob.mat=t(t(abn.mat)/abn.total)
   
-  # library size
-  if(samp.frac.var=="moderate"){
-    # Construct unbalanced library sizes
-    depth=1/sample(c(runif(n.samp, 10, 50), runif(n.samp, 100, 500)), n.samp, replace = T)
-    obs.total=round(abn.total*depth)
+  if(samp.frac=="large"){
+    depth=1/runif(n.samp, 5, 10)
   }else{
-    # Construct balanced library sizes
     depth=1/sample(c(runif(n.samp, 10, 50), runif(n.samp, 100, 500)), n.samp, replace = T)
+  }
+  
+  # library size
+  if(balanced.lib.size==TRUE){
+    # Construct balanced library sizes
     obs.total=round(max(abn.total)*depth)
+  }else{
+    # Construct unbalanced library sizes
+    obs.total=round(abn.total*depth)
   }
   names(obs.total)=paste0("sub", seq(n.samp))
   
-  # Absolute abundance in a sample
+  # Absolute abundance in samples
   set.seed(obs.seed)
-  obs.list=lapply(1:n.samp, function(i) 
+  obs.list=lapply(1:n.samp, function(i)
     phyloseq:::rarefaction_subsample(x=abn.mat[, i], sample.size=obs.total[i]))
   obs.mat=Reduce('cbind', obs.list)
   
@@ -133,12 +139,13 @@ abn.tab.gen1=function(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.a
   
   names(diff.ind)=paste0("taxon", seq(n.taxa))
   
+  # Sampling fractions
   c.mult=obs.total/abn.total
   names(c.mult)=paste0("sub", seq(n.samp))
   
   test.data=list(temp.dat, abn.dat, obs.dat, effect.size, grp.ind, 
                  diff.ind, out.ind, c.mult, abn.total, obs.total)
   names(test.data)=c("mean.eco.abn", "eco.abn", "obs.abn", "effect.size", "grp", 
-                     "diff.taxa", "outlier", "mult", "micro.load", "lib.size")
+                     "diff.taxa", "outlier", "samp.frac", "micro.load", "lib.size")
   return(test.data)
 }
