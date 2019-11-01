@@ -184,96 +184,86 @@ ANCOM_BC = function(feature.table, grp.name, grp.ind, struc.zero, adj.method = "
   bias.var.vec = rep(NA, n.grp-1)
   for (i in 1:(n.grp-1)) {
     Delta = mu[, 1] - mu[, 1+i]
-    Delta.var.est = rowSums(mu.var[, c(1, 1+i)])
+    nu = rowSums(mu.var[, c(1, 1+i)])
     
     ## 2.1 Initials
+    pi0_0 = 0.75
     pi1_0 = 0.125
-    pi2_0 = 0.75
-    pi3_0 = 0.125
+    pi2_0 = 0.125
     delta_0 = mean(Delta[Delta >= quantile(Delta, 0.25, na.rm = T)&
                          Delta <= quantile(Delta, 0.75, na.rm = T)], na.rm = T)
-    d1_0 = mean(Delta[Delta < quantile(Delta, 0.125, na.rm = T)], na.rm = T)
-    d2_0 = mean(Delta[Delta > quantile(Delta, 0.875, na.rm = T)], na.rm = T)
-    psi1.sq_0 = var(Delta[Delta < quantile(Delta, 0.125, na.rm = T)], na.rm = T)
-    if(is.na(psi1.sq_0)|psi1.sq_0 == 0) psi1.sq_0 = 1
-    psi2.sq_0 = var(Delta[Delta > quantile(Delta, 0.875, na.rm = T)], na.rm = T)
-    if(is.na(psi2.sq_0)|psi2.sq_0 == 0) psi2.sq_0 = 1
+    l1_0 = mean(Delta[Delta < quantile(Delta, 0.125, na.rm = T)], na.rm = T)
+    l2_0 = mean(Delta[Delta > quantile(Delta, 0.875, na.rm = T)], na.rm = T)
+    kappa1_0 = var(Delta[Delta < quantile(Delta, 0.125, na.rm = T)], na.rm = T)
+    if(is.na(kappa1_0)|kappa1_0 == 0) kappa1_0 = 1
+    kappa2_0 = var(Delta[Delta > quantile(Delta, 0.875, na.rm = T)], na.rm = T)
+    if(is.na(kappa2_0)|kappa2_0 == 0) kappa2_0 = 1
     
     ## 2.2 Apply E-M algorithm
     # 2.21 Store all paras in vectors/matrices
-    pi1.vec = c(pi1_0); pi2.vec = c(pi2_0); pi3.vec = c(pi3_0)
-    delta.vec = c(delta_0); d1.vec = c(d1_0); d2.vec = c(d2_0)
-    psi1.sq.vec = c(psi1.sq_0); psi2.sq.vec = c(psi2.sq_0)
+    pi0.vec = c(pi0_0); pi1.vec = c(pi1_0); pi2.vec = c(pi2_0)
+    delta.vec = c(delta_0); l1.vec = c(l1_0); l2.vec = c(l2_0)
+    kappa1.vec = c(kappa1_0); kappa2.vec = c(kappa2_0)
     
     # 2.22 E-M iteration
     iterNum = 0
     epsilon = 100
-    sigmai.sq = Delta.var.est
-    while (epsilon>tol.EM&iterNum<max.iterNum) {
+    while (epsilon > tol.EM & iterNum < max.iterNum) {
       # print(iterNum)
       ## Current value of paras
-      pi1 = pi1.vec[length(pi1.vec)]; pi2 = pi2.vec[length(pi2.vec)]; pi3 = pi3.vec[length(pi3.vec)]
+      pi0 = pi0.vec[length(pi0.vec)]; pi1 = pi1.vec[length(pi1.vec)]; pi2 = pi2.vec[length(pi2.vec)]
       delta = delta.vec[length(delta.vec)]; 
-      d1 = d1.vec[length(d1.vec)]; d2 = d2.vec[length(d2.vec)]
-      psi1.sq = psi1.sq.vec[length(psi1.sq.vec)]; psi2.sq = psi2.sq.vec[length(psi2.sq.vec)]
+      l1 = l1.vec[length(l1.vec)]; l2 = l2.vec[length(l2.vec)]
+      kappa1 = kappa1.vec[length(kappa1.vec)]; kappa2 = kappa2.vec[length(kappa2.vec)]
       
       ## E-step
-      pdf1 = sapply(seq(n.taxa), function(i) dnorm(Delta[i], delta + d1, sqrt(sigmai.sq[i] + psi1.sq)))
-      pdf2 = sapply(seq(n.taxa), function(i) dnorm(Delta[i], delta, sqrt(sigmai.sq[i])))
-      pdf3 = sapply(seq(n.taxa), function(i) dnorm(Delta[i], delta + d2, sqrt(sigmai.sq[i] + psi2.sq)))
-      r1i = pi1*pdf1/(pi1*pdf1 + pi2*pdf2 + pi3*pdf3); r1i[is.na(r1i)] = 0
-      r2i = pi2*pdf2/(pi1*pdf1 + pi2*pdf2 + pi3*pdf3); r2i[is.na(r2i)] = 0
-      r3i = pi3*pdf3/(pi1*pdf1 + pi2*pdf2 + pi3*pdf3); r3i[is.na(r3i)] = 0
+      pdf0 = sapply(seq(n.taxa), function(i) dnorm(Delta[i], delta, sqrt(nu[i])))
+      pdf1 = sapply(seq(n.taxa), function(i) dnorm(Delta[i], delta + l1, sqrt(nu[i] + kappa1)))
+      pdf2 = sapply(seq(n.taxa), function(i) dnorm(Delta[i], delta + l2, sqrt(nu[i] + kappa2)))
+      r0i = pi0*pdf0/(pi0*pdf0 + pi1*pdf1 + pi2*pdf2); r0i[is.na(r0i)] = 0
+      r1i = pi1*pdf1/(pi0*pdf0 + pi1*pdf1 + pi2*pdf2); r1i[is.na(r1i)] = 0
+      r2i = pi2*pdf2/(pi0*pdf0 + pi1*pdf1 + pi2*pdf2); r2i[is.na(r2i)] = 0
       
       ## M-step
-      pi1_new = mean(r1i, na.rm = T); pi2_new = mean(r2i, na.rm = T); pi3_new = mean(r3i, na.rm = T)
-      delta_new = sum(r1i*(Delta-d1)/(sigmai.sq+psi1.sq) + r2i*Delta/sigmai.sq + 
-                        r3i*(Delta-d2)/(sigmai.sq+psi2.sq), na.rm = T)/
-        sum(r1i/(sigmai.sq+psi1.sq) + r2i/sigmai.sq + r3i/(sigmai.sq+psi2.sq), na.rm = T)
-      d1_new = min(sum(r1i*(Delta-delta)/(sigmai.sq+psi1.sq), na.rm = T)/
-                     sum(r1i/(sigmai.sq+psi1.sq), na.rm = T), 0)
-      d2_new = max(sum(r3i*(Delta-delta)/(sigmai.sq+psi2.sq), na.rm = T)/
-                     sum(r3i/(sigmai.sq+psi2.sq), na.rm = T), 0)
+      pi0_new = mean(r0i, na.rm = T); pi1_new = mean(r1i, na.rm = T); pi2_new = mean(r2i, na.rm = T)
+      delta_new = sum(r0i*Delta/nu + r1i*(Delta-l1)/(nu+kappa1) + r2i*(Delta-l2)/(nu+kappa2), na.rm = T)/
+        sum(r0i/nu + r1i/(nu+kappa1) + r2i/(nu+kappa2), na.rm = T)
+      l1_new = min(sum(r1i*(Delta-delta)/(nu+kappa1), na.rm = T)/sum(r1i/(nu+kappa1), na.rm = T), 0)
+      l2_new = max(sum(r2i*(Delta-delta)/(nu+kappa2), na.rm = T)/sum(r2i/(nu+kappa2), na.rm = T), 0)
       
-      # Nelder-Mead simplex algorithm for psi1.sq and psi2.sq
-      obj.psi1.sq = function(x){
-        log.pdf = log(sapply(seq(n.taxa), function(i) dnorm(Delta[i], delta+d1, sqrt(sigmai.sq[i]+x))))
+      # Nelder-Mead simplex algorithm for kappa1 and kappa2
+      obj.kappa1 = function(x){
+        log.pdf = log(sapply(seq(n.taxa), function(i) dnorm(Delta[i], delta+l1, sqrt(nu[i]+x))))
         log.pdf[is.infinite(log.pdf)] = 0
         -sum(r1i*log.pdf, na.rm = T)
       }
-      psi1.sq_new = neldermead(x0 = psi1.sq, fn = obj.psi1.sq, lower = 0)$par
+      kappa1_new = neldermead(x0 = kappa1, fn = obj.kappa1, lower = 0)$par
       
-      obj.psi2.sq = function(x){
-        log.pdf = log(sapply(seq(n.taxa), function(i) dnorm(Delta[i], delta+d2, sqrt(sigmai.sq[i]+x))))
+      obj.kappa2 = function(x){
+        log.pdf = log(sapply(seq(n.taxa), function(i) dnorm(Delta[i], delta+l2, sqrt(nu[i]+x))))
         log.pdf[is.infinite(log.pdf)] = 0
-        -sum(r3i*log.pdf, na.rm = T)
+        -sum(r2i*log.pdf, na.rm = T)
       }
-      psi2.sq_new = neldermead(x0 = psi2.sq, fn = obj.psi2.sq, lower = 0)$par
+      kappa2_new = neldermead(x0 = kappa2, fn = obj.kappa2, lower = 0)$par
       
       ## Merge to the paras vectors/matrices
-      pi1.vec = c(pi1.vec, pi1_new); pi2.vec = c(pi2.vec, pi2_new); pi3.vec = c(pi3.vec, pi3_new)
+      pi0.vec = c(pi0.vec, pi0_new); pi1.vec = c(pi1.vec, pi1_new); pi2.vec = c(pi2.vec, pi2_new)
       delta.vec = c(delta.vec, delta_new)
-      d1.vec = c(d1.vec, d1_new); d2.vec = c(d2.vec, d2_new)
-      psi1.sq.vec = c(psi1.sq.vec, psi1.sq_new); psi2.sq.vec = c(psi2.sq.vec, psi2.sq_new)
+      l1.vec = c(l1.vec, l1_new); l2.vec = c(l2.vec, l2_new)
+      kappa1.vec = c(kappa1.vec, kappa1_new); kappa2.vec = c(kappa2.vec, kappa2_new)
       
       ## Calculate the new epsilon
-      epsilon = sqrt((pi1_new-pi1)^2 + (pi2_new-pi2)^2 + (pi3_new-pi3)^2 + (delta_new-delta)^2+
-                       (d1_new-d1)^2 + (d2_new-d2)^2 + (psi1.sq_new-psi1.sq)^2 + (psi2.sq_new-psi2.sq)^2)
+      epsilon = sqrt((pi0_new-pi0)^2 + (pi1_new-pi1)^2 + (pi2_new-pi2)^2 + (delta_new-delta)^2+
+                       (l1_new-l1)^2 + (l2_new-l2)^2 + (kappa1_new-kappa1)^2 + (kappa2_new-kappa2)^2)
       iterNum = iterNum+1
     }
     # 2.23 Estimate the bias
     bias.est.vec[i] = delta.vec[length(delta.vec)]
     
     # 2.24 Estimate the variance of bias
-    # Cluster 1
-    C1 = which(Delta < quantile(Delta, pi1_new, na.rm = T))
-    # Cluster 2
-    C2 = which(Delta >= quantile(Delta, pi1_new, na.rm = T) & Delta < quantile(Delta, 1 - pi3_new, na.rm = T))
-    # Cluster 3
-    C3 = which(Delta >= quantile(Delta, 1 - pi3_new, na.rm = T))
-    kappa.sq = sigmai.sq
-    kappa.sq[C1] = kappa.sq[C1] + psi1.sq_new; kappa.sq[C3] = kappa.sq[C3] + psi2.sq_new
-    bias.var.vec[i] = 1 / (sum(1 / kappa.sq))
+    # Cluster 0
+    C0 = which(Delta >= quantile(Delta, pi1_new, na.rm = T) & Delta < quantile(Delta, 1 - pi2_new, na.rm = T))
+    bias.var.vec[i] = var(Delta[C0])/length(C0)
     if (is.na(bias.var.vec[i])) bias.var.vec[i] = 0
   }
   bias.est.vec = c(0, bias.est.vec)

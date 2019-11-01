@@ -1748,7 +1748,7 @@ simpattern=distinct(simparams, n.taxa, n.samp.grp1, n.samp.grp2, prop.diff)
 sum.order=data_format1(dat.order)
 ```
 
-## 3.3 Table S5
+## 3.3 Table S4
 
 ```{r, message=FALSE, warning=FALSE, comment=NA}
 sum.small.taxa = rbind(sum.phylum, sum.order)
@@ -1867,7 +1867,7 @@ sum.multi=data_format2(dat.multi)
 colnames(sum.multi)=c("# Taxa", "Sample Size", "Diff (%)", "FDR", "FDRSD", "Power", "PowerSD")
 ```
 
-## 4.4 Table S6
+## 4.4 Table S5
 
 ```{r, message=FALSE, warning=FALSE, comment=NA}
 pander(sum.multi)
