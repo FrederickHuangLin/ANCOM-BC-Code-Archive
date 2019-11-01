@@ -180,8 +180,9 @@ ANCOM_BC = function(feature.table, grp.name, grp.ind, struc.zero, adj.method = "
   mu.var = mu.var/sample.size
   
   ### 2. Estimate the bias (between-group difference of sampling fractions) by E-M algorithm
-  bias.est.vec = rep(NA, n.grp-1)
-  bias.var.vec = rep(NA, n.grp-1)
+  bias.em.vec = rep(NA, n.grp - 1)
+  bias.wls.vec = rep(NA, n.grp - 1)
+  bias.var.vec = rep(NA, n.grp - 1)
   for (i in 1:(n.grp-1)) {
     Delta = mu[, 1] - mu[, 1+i]
     nu = rowSums(mu.var[, c(1, 1+i)])
@@ -258,21 +259,41 @@ ANCOM_BC = function(feature.table, grp.name, grp.ind, struc.zero, adj.method = "
       iterNum = iterNum+1
     }
     # 2.23 Estimate the bias
-    bias.est.vec[i] = delta.vec[length(delta.vec)]
+    bias.em.vec[i] = delta.vec[length(delta.vec)]
     
-    # 2.24 Estimate the variance of bias
+    # 2.24 The WLS estimator of bias
     # Cluster 0
     C0 = which(Delta >= quantile(Delta, pi1_new, na.rm = T) & Delta < quantile(Delta, 1 - pi2_new, na.rm = T))
-    bias.var.vec[i] = var(Delta[C0])/length(C0)
+    # Cluster 1
+    C1 = which(Delta < quantile(Delta, pi1_new, na.rm = T))
+    # Cluster 2
+    C2 = which(Delta >= quantile(Delta, 1 - pi2_new, na.rm = T))
+    
+    nu_temp = nu
+    nu_temp[C1] = nu_temp[C1] + kappa1_new
+    nu_temp[C2] = nu_temp[C2] + kappa2_new
+    wls.deno = sum(1 / nu_temp)
+    
+    wls.nume = 1 / nu_temp
+    wls.nume[C0] = (wls.nume * Delta)[C0]
+    wls.nume[C1] = (wls.nume * (Delta - l1_new))[C1]
+    wls.nume[C2] = (wls.nume * (Delta - l2_new))[C2];   
+    wls.nume = sum(wls.nume)
+    
+    bias.wls.vec[i] = wls.nume / wls.deno
+      
+    # 2.25 Estimate the variance of bias  
+    bias.var.vec[i] = 1 / wls.deno
     if (is.na(bias.var.vec[i])) bias.var.vec[i] = 0
   }
-  bias.est.vec = c(0, bias.est.vec)
+  bias.em.vec = c(0, bias.em.vec)
+  bias.wls.vec = c(0, bias.wls.vec)
   
   ### 3. Final estimates of mean absolute abundane and sampling fractions
-  mu.adj.comp = t(t(mu) + bias.est.vec)
+  mu.adj.comp = t(t(mu) + bias.em.vec)
   colnames(mu.adj.comp) = grp.name; rownames(mu.adj.comp) = taxa.id
   
-  d.adj = d - rep(bias.est.vec, sapply(grp.ind, length))
+  d.adj = d - rep(bias.em.vec, sapply(grp.ind, length))
   names(d.adj) = sample.id
   
   ### 4. Hypothesis testing
@@ -367,6 +388,6 @@ ANCOM_BC = function(feature.table, grp.name, grp.ind, struc.zero, adj.method = "
   colnames(res) = colnames(res.comp); rownames(res) = taxa.id.raw
   res = res%>%mutate(diff.abn = ifelse(q.val < alpha, TRUE, FALSE))
   
-  out = list(feature.table = feature.table, res = res, d = d.adj, mu = mu.adj, bias.est = bias.est.vec)
+  out = list(feature.table = feature.table, res = res, d = d.adj, mu = mu.adj, bias.em = bias.em.vec, bias.wls = bias.wls.vec)
   return(out)
 }

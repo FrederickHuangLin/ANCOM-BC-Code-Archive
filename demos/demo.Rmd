@@ -7,6 +7,8 @@ output:
 ---
 
 ```{r setup, include=FALSE}
+rm(list = ls())
+
 library(readr)
 library(microbiome)
 source("ancom_bc_v1.0.R")
