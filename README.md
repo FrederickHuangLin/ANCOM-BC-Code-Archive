@@ -66,7 +66,8 @@ library(nloptr)
     * ```diff.abn```. Logical. TRUE if the taxon has ```q.val``` less than ```alpha```.
 *	```d```: A numeric vector. Estimated sampling fractions in log scale.
 *	```mu```: A numeric vector. Estimated log mean absolute abundance for each group.
-*	```bias.est```: Numeric. Estimated mean difference of log sampling fractions between groups through E-M algorithm.
+*	```bias.em```: Numeric. Estimated mean difference of log sampling fractions between groups through E-M algorithm.
+*	```bias.wls```: Numeric. Estimated mean difference of log sampling fractions between groups through weighted least squares.
 
 ## Flowchart of ANCOM-BC
 
