@@ -1,5 +1,5 @@
 ---
-title: "Figure 3, S1, S2"
+title: "Figure 3, S1, S2, S8"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
   html_document: default
@@ -532,7 +532,7 @@ norm.df=norm.df%>%mutate(D.ANCOM.BC = ACTUAL - ANCOM.BC,
 write.csv(norm.df, file = "../data/sim_additional/norm_slight.csv", row.names = F)
 ```
 
-## 1.2 Fig. 3
+## 1.2 Fig. S8
 
 ```{r, message=FALSE, warning=FALSE, comment=NA}
 norm.df = read_csv("../data/sim_additional/norm_slight.csv")
