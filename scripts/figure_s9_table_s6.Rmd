@@ -1,0 +1,298 @@
+---
+title: "Figure S9, Table S6"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+rm(list = ls())
+
+library(tidyverse)
+library(phyloseq)
+library(ggpubr)
+library(RColorBrewer)
+library(DT)
+library(pander)
+panderOptions('table.caption.prefix', NULL)
+panderOptions('table.continues', NULL)
+panderOptions('table.emphasize.rownames', FALSE)
+
+source("sim_data_poi_gam_two_grp.R")
+source("ancom_bc_v1.0.R")
+```
+
+# 1. Correlation Between EM and WLS Estimators
+
+## 1.1 Simulation Settings
+
+```{r, message=FALSE, warning=FALSE, comment=NA}
+# The number of taxa, library size, and sample size
+n.taxa = 1000; balanced.micro.load = FALSE; balanced.lib.size = TRUE 
+samp.frac = "small"; n.samp = "50_50"
+
+# The proportion of differentially abundant taxa
+prop.diff=c(0.05, 0.15, 0.25)
+
+# Set seeds
+iterNum=100
+abn.seed=seq(iterNum)
+
+# Define the simulation parameters
+simparams=expand.grid(n.taxa, n.samp, prop.diff, abn.seed, 
+                      balanced.micro.load, balanced.lib.size, samp.frac)
+colnames(simparams)=c("n.taxa", "n.samp", "prop.diff", "abn.seed", 
+                      "balanced.micro.load", "balanced.lib.size", "samp.frac")
+simparams=simparams%>%mutate(obs.seed=abn.seed+1)
+simparams=simparams%>%separate(col = n.samp, into = c("n.samp.grp1", "n.samp.grp2"), sep = "_")
+simparams=simparams%>%arrange(n.taxa, n.samp.grp1, prop.diff, abn.seed, obs.seed)
+simparams.list=apply(simparams, 1, paste0, collapse="_")
+
+simparamslabels=c("n.taxa", "n.samp.grp1", "n.samp.grp2","prop.diff", "abn.seed",
+                  "balanced.micro.load", "balanced.lib.size", "samp.frac", "obs.seed")
+```
+
+## 1.2 ANCOM-BC
+
+```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
+library(doParallel)
+library(foreach)
+
+detectCores()
+myCluster=makeCluster(4, type = "FORK")
+registerDoParallel(myCluster)
+
+start_time <- Sys.time()
+simlist=foreach(i = simparams.list, .combine = 'cbind') %dopar% {
+  # i = simparams.list[[1]]
+  print(i)
+  params = strsplit(i, "_")[[1]]
+  names(params) <- simparamslabels
+  
+  # Paras for data generation
+  n.taxa=as.numeric(params["n.taxa"])
+  n.samp.grp1=as.numeric(params["n.samp.grp1"])
+  n.samp.grp2=as.numeric(params["n.samp.grp2"])
+  prop.diff=as.numeric(params["prop.diff"])
+  abn.seed=as.numeric(params["abn.seed"])
+  obs.seed=as.numeric(params["obs.seed"])
+  balanced.micro.load=as.logical(params["balanced.micro.load"])
+  balanced.lib.size=as.logical(params["balanced.lib.size"])
+  samp.frac=params["samp.frac"]
+  
+  # Data generation
+  low.abn=50; med.abn=200; high.abn=10000; struc.zero.prop=0.20; out.zero.prop=0.05
+  test.dat=abn.tab.gen1(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.abn,
+                        prop.diff, abn.seed, obs.seed, struc.zero.prop, out.zero.prop,
+                        balanced.micro.load, balanced.lib.size, samp.frac)
+  obs.abn=test.dat$obs.abn
+  meta.data=cbind(Sample.ID=paste0("sub", seq(n.samp.grp1+n.samp.grp2)), 
+                  group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
+  d=log(test.dat$samp.frac)
+  
+  # Pre-processing
+  feature.table=obs.abn; sample.var="Sample.ID"; group.var="group"
+  zero.cut=0.90; lib.cut=1000; neg.lb=FALSE
+  pre.process=feature_table_pre_process(feature.table, meta.data, sample.var, 
+                                        group.var, zero.cut, lib.cut, neg.lb)
+  feature.table=pre.process$feature.table
+  group.name=pre.process$group.name
+  group.ind=pre.process$group.ind
+  struc.zero=pre.process$structure.zeros
+  
+  # Paras for ANCOM-BC
+  grp.name=group.name; grp.ind=group.ind; adj.method="bonferroni"
+  tol.EM=1e-5; max.iterNum=100; perNum=1000; alpha=0.05
+  
+  # Run ANCOM-BC
+  suppressWarnings(out <- try(ANCOM_BC(feature.table, grp.name, grp.ind, struc.zero,
+                                       adj.method, tol.EM, max.iterNum, perNum, alpha), 
+                              silent = TRUE))
+  if (inherits(out, "try-error")) {
+    bias.true=NA; bias.em=NA; bias.wls=NA; bias.diff=NA
+  }else{
+    bias.true=mean(d[1:n.samp.grp1]) - mean(d[(n.samp.grp1+1):(n.samp.grp1+n.samp.grp2)])
+    bias.em=out$bias.em[2]; bias.wls=out$bias.wls[2]
+  }
+  c(bias.true, bias.em, bias.wls)
+}
+end_time <- Sys.time()
+end_time - start_time
+
+stopCluster(myCluster)
+write_csv(data.frame(simlist), "em_vs_wls.csv")
+```
+
+## 1.3 Fig. S9
+
+```{r, message=FALSE, warning=FALSE, comment=NA, fig.width=10}
+# Read in original data
+p.df = read_csv("../data/sim_additional/em_vs_wls.csv")
+
+# Reshape data
+p.df = data.frame(t(p.df))
+colnames(p.df) = c("true", "em", "wls")
+p.df = p.df%>%mutate(prop = rep(paste0(prop.diff*100, "%"), each = iterNum))
+
+# Annotation data
+txt.df = p.df%>%group_by(prop)%>%
+  summarise(corr = cor.test(em, wls)$estimate,
+            p = cor.test(em, wls)$p.value)%>%
+  mutate(em = -0.35, wls = 0.4)
+txt.df = txt.df%>%mutate(level = ifelse(p < .001, "p < .001", round(p, 3)),
+                         label = paste0("r = ", round(corr, 2), " (", level, ")"))
+
+txt.df$prop = factor(txt.df$prop, levels = c("5%", "15%", "25%"))
+p.df$prop = factor(p.df$prop, levels = c("5%", "15%", "25%"))
+
+p=ggplot(p.df, aes(em, wls)) + geom_point(size = 0.3) + 
+  geom_abline(slope = 1, intercept = 0, color = "steelblue", linetype="dashed") + 
+  scale_x_continuous(breaks = seq(-0.6, 0.6, 0.3), limits = c(-0.65, 0.65)) +
+  scale_y_continuous(breaks = seq(-0.6, 0.6, 0.3), limits = c(-0.65, 0.65)) +
+  facet_wrap(.~prop)+
+  labs(x="EM estimator", y="WLS estimator")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "bottom",
+        strip.background = element_rect(fill="white"))+
+  guides(color = guide_legend(override.aes = list(size=3)))+
+  geom_text(data = txt.df, mapping = aes(x = em, y = wls, label = label))
+p
+ggsave("../figures/Figure S9.pdf", width=10, height=5, units='in')
+ggsave("../figures/Figure S9.jpeg", width=10, height=5, units='in', dpi = 300)
+```
+
+# 2. Bias and Variance of EM and WLS Estimators
+
+## 2.1 Simulation Settings
+
+```{r, message=FALSE, warning=FALSE, comment=NA}
+# The number of taxa, library size, and sample size
+n.taxa = 1000; balanced.micro.load = FALSE; balanced.lib.size = TRUE 
+samp.frac = "small"; n.samp = "50_50"
+
+# The proportion of differentially abundant taxa
+prop.diff=c(0.05, 0.15, 0.25)
+
+# Set seeds
+iterNum=100
+abn.seed=1
+obs.seed=1:100
+
+# Define the simulation parameters
+simparams=expand.grid(n.taxa, n.samp, prop.diff, abn.seed, obs.seed,
+                      balanced.micro.load, balanced.lib.size, samp.frac)
+colnames(simparams)=c("n.taxa", "n.samp", "prop.diff", "abn.seed", "obs.seed",
+                      "balanced.micro.load", "balanced.lib.size", "samp.frac")
+simparams=simparams%>%separate(col = n.samp, into = c("n.samp.grp1", "n.samp.grp2"), sep = "_")
+simparams=simparams%>%arrange(n.taxa, n.samp.grp1, prop.diff, abn.seed, obs.seed)
+simparams.list=apply(simparams, 1, paste0, collapse="_")
+
+simparamslabels=c("n.taxa", "n.samp.grp1", "n.samp.grp2","prop.diff", "abn.seed", "obs.seed",
+                  "balanced.micro.load", "balanced.lib.size", "samp.frac")
+```
+
+## 2.2 ANCOM-BC
+
+```{r, message=FALSE, warning=FALSE, comment=NA, eval=FALSE}
+library(doParallel)
+library(foreach)
+
+detectCores()
+myCluster=makeCluster(4, type = "FORK")
+registerDoParallel(myCluster)
+
+start_time <- Sys.time()
+simlist=foreach(i = simparams.list, .combine = 'cbind') %dopar% {
+  # i = simparams.list[[1]]
+  print(i)
+  params = strsplit(i, "_")[[1]]
+  names(params) <- simparamslabels
+  
+  # Paras for data generation
+  n.taxa=as.numeric(params["n.taxa"])
+  n.samp.grp1=as.numeric(params["n.samp.grp1"])
+  n.samp.grp2=as.numeric(params["n.samp.grp2"])
+  prop.diff=as.numeric(params["prop.diff"])
+  abn.seed=as.numeric(params["abn.seed"])
+  obs.seed=as.numeric(params["obs.seed"])
+  balanced.micro.load=as.logical(params["balanced.micro.load"])
+  balanced.lib.size=as.logical(params["balanced.lib.size"])
+  samp.frac=params["samp.frac"]
+  
+  # Data generation
+  low.abn=50; med.abn=200; high.abn=10000; struc.zero.prop=0.20; out.zero.prop=0.05
+  test.dat=abn.tab.gen1(n.taxa, n.samp.grp1, n.samp.grp2, low.abn, med.abn, high.abn,
+                        prop.diff, abn.seed, obs.seed, struc.zero.prop, out.zero.prop,
+                        balanced.micro.load, balanced.lib.size, samp.frac)
+  obs.abn=test.dat$obs.abn
+  meta.data=cbind(Sample.ID=paste0("sub", seq(n.samp.grp1+n.samp.grp2)), 
+                  group=rep(c(1, 2), c(n.samp.grp1, n.samp.grp2)))
+  d=log(test.dat$samp.frac)
+  
+  # Pre-processing
+  feature.table=obs.abn; sample.var="Sample.ID"; group.var="group"
+  zero.cut=0.90; lib.cut=1000; neg.lb=FALSE
+  pre.process=feature_table_pre_process(feature.table, meta.data, sample.var, 
+                                        group.var, zero.cut, lib.cut, neg.lb)
+  feature.table=pre.process$feature.table
+  group.name=pre.process$group.name
+  group.ind=pre.process$group.ind
+  struc.zero=pre.process$structure.zeros
+  
+  # Paras for ANCOM-BC
+  grp.name=group.name; grp.ind=group.ind; adj.method="bonferroni"
+  tol.EM=1e-5; max.iterNum=100; perNum=1000; alpha=0.05
+  
+  # Run ANCOM-BC
+  suppressWarnings(out <- try(ANCOM_BC(feature.table, grp.name, grp.ind, struc.zero,
+                                       adj.method, tol.EM, max.iterNum, perNum, alpha), 
+                              silent = TRUE))
+  if (inherits(out, "try-error")) {
+    bias.true=NA; bias.em=NA; bias.wls=NA; bias.diff=NA
+  }else{
+    bias.true=mean(d[1:n.samp.grp1]) - mean(d[(n.samp.grp1+1):(n.samp.grp1+n.samp.grp2)])
+    bias.em=out$bias.em[2]; bias.wls=out$bias.wls[2]
+  }
+  c(bias.true, bias.em, bias.wls)
+}
+end_time <- Sys.time()
+end_time - start_time
+
+stopCluster(myCluster)
+write_csv(data.frame(simlist), "bias_var_em_wls.csv")
+```
+
+## 2.3 Table S6
+
+```{r, message=FALSE, warning=FALSE, comment=NA}
+# Read in original data
+tab.df = read_csv("../data/sim_additional/bias_var_em_wls.csv")
+
+# Reshape data
+tab.df = data.frame(t(tab.df))
+colnames(tab.df) = c("true", "em", "wls")
+tab.df = tab.df%>%mutate(diff = rep(prop.diff, each = iterNum))
+
+# Summary
+tab = tab.df%>%group_by(diff)%>%
+  summarise(bias2.em = signif((mean(em) - true[1])^2, 3),
+            bias2.wls = signif((mean(wls) - true[1])^2, 3),
+            var.em = signif(var(em), 3),
+            var.wls = signif(var(wls), 3),
+            `1/(nm0)` = signif(1/(50*1000*(1-diff[1])), 3))%>%
+  arrange(diff)
+
+tab$diff = recode(tab$diff, `0.05` = "5%", `0.15` = "15%", `0.25` = "25%")
+pander(tab)
+```
+
+# Session information
+
+```{r, message=FALSE, warning=FALSE, comment=NA}
+sessionInfo()
+devtools::session_info()
+```

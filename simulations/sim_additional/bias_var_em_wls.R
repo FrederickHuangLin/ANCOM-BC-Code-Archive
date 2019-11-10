@@ -11,20 +11,20 @@ prop.diff=c(0.05, 0.15, 0.25)
 
 # Set seeds
 iterNum=100
-abn.seed=seq(iterNum)
+abn.seed=1
+obs.seed=1:100
 
 # Define the simulation parameters
-simparams=expand.grid(n.taxa, n.samp, prop.diff, abn.seed, 
+simparams=expand.grid(n.taxa, n.samp, prop.diff, abn.seed, obs.seed,
                       balanced.micro.load, balanced.lib.size, samp.frac)
-colnames(simparams)=c("n.taxa", "n.samp", "prop.diff", "abn.seed", 
+colnames(simparams)=c("n.taxa", "n.samp", "prop.diff", "abn.seed", "obs.seed",
                       "balanced.micro.load", "balanced.lib.size", "samp.frac")
-simparams=simparams%>%mutate(obs.seed=abn.seed+1)
 simparams=simparams%>%separate(col = n.samp, into = c("n.samp.grp1", "n.samp.grp2"), sep = "_")
 simparams=simparams%>%arrange(n.taxa, n.samp.grp1, prop.diff, abn.seed, obs.seed)
 simparams.list=apply(simparams, 1, paste0, collapse="_")
 
-simparamslabels=c("n.taxa", "n.samp.grp1", "n.samp.grp2","prop.diff", "abn.seed",
-                  "balanced.micro.load", "balanced.lib.size", "samp.frac", "obs.seed")
+simparamslabels=c("n.taxa", "n.samp.grp1", "n.samp.grp2","prop.diff", "abn.seed", "obs.seed",
+                  "balanced.micro.load", "balanced.lib.size", "samp.frac")
 
 library(doParallel)
 library(foreach)
@@ -91,4 +91,4 @@ end_time <- Sys.time()
 end_time - start_time
 
 stopCluster(myCluster)
-write_csv(data.frame(simlist), "em_vs_wls.csv")
+write_csv(data.frame(simlist), "bias_var_em_wls.csv")
