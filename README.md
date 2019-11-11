@@ -112,6 +112,8 @@ res = cbind(taxon = rownames(out$feature.table), out$res)
 write_csv(res, "demo_two_group.csv")
 ```
 
+Expected run time: 6s (R version 3.5.1 (2018-07-02); Platform: x86_64-apple-darwin15.6.0 (64-bit); Running under: macOS  10.15.1.)
+
 ### Multi-group comparison
 
 ```r
@@ -134,3 +136,5 @@ out = ANCOM_BC(feature.table, grp.name, grp.ind, struc.zero,
 res = cbind(taxon = rownames(out$feature.table), out$res)
 write_csv(res, "demo_multi_group.csv")
 ```
+
+Expected run time: 19s (R version 3.5.1 (2018-07-02); Platform: x86_64-apple-darwin15.6.0 (64-bit); Running under: macOS  10.15.1.)
