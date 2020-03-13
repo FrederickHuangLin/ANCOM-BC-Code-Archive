@@ -551,7 +551,7 @@ p=ggplot(p.df, aes(x=method, y=value, color=method))+
                      label=norm.var$label,
                      values = gg_color_hue(8))+
   scale_shape_manual(name=NULL, values=c(1, 17))+
-  labs(x="", y="Centered Deviance")+
+  labs(x="", y="Residual")+
   theme_bw()+
   theme(panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
