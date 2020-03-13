@@ -962,6 +962,113 @@ ggsave("../figures/Figure S4.pdf", width=6.25, height=9, units='in')
 ggsave("../figures/Figure S4.jpeg", width=6.25, height=9, units='in', dpi = 300)
 ```
 
+# 5. FDR and Power with the Presence of Large Variable Sampling Fractions Using BH Procedure
+
+```{r, message=FALSE, warning=FALSE, comment=NA}
+## Read in original data
+dat.ancom_bc=read_csv("../data/sim_poi_gam/large/fdr_power_ancom_bc_bh.csv")
+dat.ancom=read_csv("../data/sim_poi_gam/large/fdr_power_ancom_large.csv")
+dat.deseq2=read_csv("../data/sim_poi_gam/large/fdr_power_deseq2_large.csv")
+dat.edger=read_csv("../data/sim_poi_gam/large/fdr_power_edger_large.csv")
+dat.zilg=read_csv("../data/sim_poi_gam/large/fdr_power_zilg_large.csv")
+dat.zig=read_csv("../data/sim_poi_gam/large/fdr_power_zig_large.csv")
+dat.wilcox_un=read_csv("../data/sim_poi_gam/large/fdr_power_wilcox_un_large.csv")
+dat.wilcox_tss=read_csv("../data/sim_poi_gam/large/fdr_power_wilcox_tss_large.csv")
+
+## Reshaping data
+simpattern=distinct(simparams, n.taxa, n.samp.grp1, n.samp.grp2, prop.diff)
+
+data_summary = function(eval_data, method){
+  FDR=tapply(as.numeric(eval_data[1, ]), 
+             rep(seq(nrow(simpattern)), each=iterNum), function(x) mean(x, na.rm = T))
+  FDRSD=tapply(as.numeric(eval_data[1, ]), 
+               rep(seq(nrow(simpattern)), each=iterNum), function(x) sd(x, na.rm = T))
+  power=tapply(as.numeric(eval_data[2, ]), 
+               rep(seq(nrow(simpattern)), each=iterNum), function(x) mean(x, na.rm = T))
+  powerSD=tapply(as.numeric(eval_data[2, ]), 
+                 rep(seq(nrow(simpattern)), each=iterNum), function(x) sd(x, na.rm = T))
+  data_sum = data.frame(FDR, FDRSD, power, powerSD, simpattern, method)
+  data_sum = data_sum%>%unite(n.samp.grp, n.samp.grp1, n.samp.grp2, sep = ", ")
+  
+  return(data_sum)
+}
+
+eval.dat.list = list(dat.ancom_bc, dat.ancom, dat.deseq2, dat.edger, 
+                     dat.zilg, dat.zig, dat.wilcox_un, dat.wilcox_tss)
+method.list = list("ANCOM-BC", "ANCOM", "DESeq2", "edgeR", "ZILG", "ZIG", "Wilcoxon", "Wilcoxon + TSS")
+
+dat.fig.list = vector(mode = "list", length = length(eval.dat.list))
+for (i in 1:length(eval.dat.list)) {
+  dat.fig.list[[i]] = data_summary(eval.dat.list[[i]], method.list[[i]])
+}
+
+## Merge data
+dat.fig=Reduce('rbind', dat.fig.list)
+dat.fig$n.samp.grp=factor(dat.fig$n.samp.grp)
+levels(dat.fig$n.samp.grp)=c("n = 20/30", "n = 50/50")
+dat.fig$method=factor(dat.fig$method)
+dat.fig$prop.diff=factor(dat.fig$prop.diff)
+
+dat.fig%>%datatable()%>%formatRound(columns=c("FDR", "FDRSD", "power", "powerSD"), digits=3)
+```
+
+## 5.1 Fig. S10a
+
+```{r, message=FALSE, warning=FALSE, comment=NA}
+p1=ggplot(dat.fig, aes(x=prop.diff, y=FDR, fill=method)) +
+  geom_hline(yintercept=0.05, linetype="solid", color="black", size = 0.2)+
+  geom_hline(yintercept=0.05+sqrt(0.05*0.95/100), linetype="dashed", color="black", size = 0.2)+
+  scale_y_continuous(breaks = c(0.05, seq(0.2, 1, 0.2)), limits = c(0, 0.8))+
+  coord_flip()+facet_grid(.~n.samp.grp)+
+  geom_bar(stat="identity", position=position_dodge())+
+  labs(x="Proportion of Differentially Abundant Taxa", y="", fill=NULL, title="FDR")+
+  scale_fill_brewer(palette="Dark2")+
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        plot.title=element_text(hjust = 0.5),
+        strip.background = element_rect(fill="white"),
+        legend.position = "bottom")+
+  guides(fill=guide_legend(nrow=2, byrow=TRUE))
+ggarrange(p1, labels = "a")
+ggsave("../figures/Figure S10a.pdf", width=6.25, height=5, units='in')
+ggsave("../figures/Figure S10a.jpeg", width=6.25, height=5, units='in', dpi = 300)
+```
+
+## 5.2 Fig. S10b
+
+```{r, message=FALSE, warning=FALSE, comment=NA}
+p2=ggplot(dat.fig, aes(x=prop.diff, y=power, fill=method)) +
+  scale_y_continuous(breaks = seq(0.2, 1, 0.2), limits = c(0, 1))+
+  coord_flip()+facet_grid(.~n.samp.grp)+
+  geom_bar(stat="identity", position=position_dodge())+
+  labs(x="Proportion of Differentially Abundant Taxa", y="", fill=NULL, title="Power")+
+  scale_fill_brewer(palette="Dark2")+
+  theme_bw()+
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        strip.background = element_rect(fill="white"),
+        plot.title=element_text(hjust = 0.5),
+        legend.position = "bottom")+
+  guides(fill=guide_legend(nrow=2, byrow=TRUE))
+ggarrange(p2, labels = "b")
+ggsave("../figures/Figure S10b.pdf", width=6.25, height=5, units='in')
+ggsave("../figures/Figure S10b.jpeg", width=6.25, height=5, units='in', dpi = 300)
+```
+
+## 5.3 Fig. S10
+
+```{r, message=FALSE, warning=FALSE, comment=NA, fig.height=10}
+p = ggarrange(p1 + labs(x=NULL), p2 + labs(x=NULL),
+              labels = c("a", "b"), 
+              ncol = 1, nrow = 2,
+              common.legend = TRUE, legend="bottom")
+annotate_figure(p, left = text_grob("Proportion of Differentially Abundant Taxa", rot = 90))
+ggsave("../figures/Figure S10.pdf", width=6.25, height=9, units='in')
+ggsave("../figures/Figure S10.jpeg", width=6.25, height=9, units='in', dpi = 300)
+```
+
+
 # Session information
 
 ```{r, message=FALSE, warning=FALSE, comment=NA}
