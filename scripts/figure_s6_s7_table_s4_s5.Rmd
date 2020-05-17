@@ -8,6 +8,7 @@ output:
 
 ```{r setup, include=FALSE}
 rm(list = ls())
+knitr::opts_chunk$set(fig.width = 6.25, fig.height = 5)
 
 library(readxl)
 library(tidyverse)
@@ -781,7 +782,7 @@ ggsave("../figures/Figure S6b.jpeg", width=6.25, height=5, units='in', dpi = 300
 
 ### 1.33 Fig. S6
 
-```{r, message=FALSE, warning=FALSE, comment=NA, fig.height=10}
+```{r, message=FALSE, warning=FALSE, comment=NA, fig.height=9}
 p = ggarrange(p1 + labs(x=NULL), p2 + labs(x=NULL),
               labels = c("a", "b"), 
               ncol = 1, nrow = 2,
@@ -1496,7 +1497,7 @@ ggsave("../figures/Figure S7b.jpeg", width=6.25, height=5, units='in', dpi = 300
 
 ### 2.33 Fig. S7
 
-```{r, message=FALSE, warning=FALSE, comment=NA, fig.height=10}
+```{r, message=FALSE, warning=FALSE, comment=NA, fig.height=9}
 p = ggarrange(p1 + labs(x=NULL), p2 + labs(x=NULL),
               labels = c("a", "b"), 
               ncol = 1, nrow = 2,

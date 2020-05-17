@@ -582,7 +582,7 @@ dat.fig_ma_ven$struc.zero=factor(dat.fig_ma_ven$struc.zero)
 
 ## 3.4 Fig. 6a
 
-```{r, message=FALSE, warning=FALSE, comment=NA}
+```{r, message=FALSE, warning=FALSE, comment=NA, fig.height=5, fig.width=10}
 dat.fig_ma_us2=cbind(dat.fig_ma_us, type="MA - US")
 dat.fig_ven_us2=cbind(dat.fig_ven_us, type="VEN - US")
 dat.fig_ma_ven2=cbind(dat.fig_ma_ven, type="MA - VEN")
@@ -667,7 +667,7 @@ pander(BFres)
 
 ## 3.7 Fig. 6b
 
-```{r, message=FALSE, warning=FALSE, comment=NA}
+```{r, message=FALSE, warning=FALSE, comment=NA, fig.height=5, fig.width=6.25}
 dat.fig.diff=BFres
 dat.fig.diff$log.fold.change=as.numeric(dat.fig.diff$log.fold.change)
 dat.fig.diff$ci.lo=as.numeric(dat.fig.diff$ci.lo)
@@ -698,7 +698,7 @@ ggsave("../figures/Figure 6b.jpeg", width=6.25, height=5, units='in', dpi = 300)
 
 ## 3.8 Fig.6
 
-```{r, message=FALSE, warning=FALSE, comment=NA, fig.height=10}
+```{r, message=FALSE, warning=FALSE, comment=NA, , fig.height=9, fig.width=6.25}
 p = ggarrange(p1, p2,
               labels = c("a", "b"), 
               ncol = 1, nrow = 2,

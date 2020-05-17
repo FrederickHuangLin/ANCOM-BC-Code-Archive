@@ -8,6 +8,7 @@ output:
 
 ```{r setup, include=FALSE}
 rm(list = ls())
+knitr::opts_chunk$set(fig.width = 6.25, fig.height = 5)
 
 library(tidyverse)
 library(microbiome)
@@ -708,7 +709,7 @@ ggsave("../figures/Figure S5b.jpeg", width=6.25, height=5, units='in', dpi = 300
 
 ## 3.3 Fig. S5
 
-```{r, message=FALSE, warning=FALSE, comment=NA, fig.height=10}
+```{r, message=FALSE, warning=FALSE, comment=NA, fig.height=9}
 p = ggarrange(p1 + labs(x=NULL), p2 + labs(x=NULL),
               labels = c("a", "b"), 
               ncol = 1, nrow = 2,

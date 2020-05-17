@@ -8,6 +8,7 @@ output:
 
 ```{r setup, include=FALSE}
 rm(list = ls())
+knitr::opts_chunk$set(fig.width = 8, fig.height = 5)
 
 library(tidyverse)
 library(nloptr)
@@ -237,29 +238,29 @@ mds.xy.tss=mds.xy.tss%>%mutate(scale_x1=scale(X1), scale_x2=scale(X2))
 
 mds.list=list(mds.xy.ancom.bc, mds.xy.uq1, mds.xy.tmm1, mds.xy.css, 
               mds.xy.med, mds.xy.uq2, mds.xy.tmm2, mds.xy.tss)
-ssb.df=data.frame(method=c("ANCOM-BC", "ELib-UQ", "ELib-TMM", "CSS", "MED", "UQ", "TMM", "TSS"), ssb = NA)
+bss.df=data.frame(method=c("ANCOM-BC", "ELib-UQ", "ELib-TMM", "CSS", "MED", "UQ", "TMM", "TSS"), bss = NA)
 for (i in 1:length(mds.list)) {
   method=mds.list[[i]]
-  sst=ss_compute(method%>%dplyr::select(scale_x1, scale_x2))
-  ssw=ss_compute(method%>%filter(country=="MA")%>%dplyr::select(scale_x1, scale_x2))+
+  tss=ss_compute(method%>%dplyr::select(scale_x1, scale_x2))
+  wss=ss_compute(method%>%filter(country=="MA")%>%dplyr::select(scale_x1, scale_x2))+
     ss_compute(method%>%filter(country=="VEN")%>%dplyr::select(scale_x1, scale_x2))
-  ssb=sst-ssw
-  ssb.df[i, "ssb"]=ssb
+  bss=tss-wss
+  bss.df[i, "bss"]=bss
 }
 
-txt.df = data.frame(X1=0.2, X2=0.25, ssb.df)
-txt.df$ssb = paste0("SSB = ", round(txt.df$ssb, 0))
+txt.df = data.frame(X1=0.2, X2=0.25, bss.df)
+txt.df$bss = paste0("BSS = ", round(txt.df$bss, 0))
 p.df = rbind(mds.xy.ancom.bc, mds.xy.uq1, mds.xy.tmm1, mds.xy.css, 
              mds.xy.med, mds.xy.uq2, mds.xy.tmm2, mds.xy.tss)
 
-write.csv(txt.df, "../data/global_gut/ssb.csv", row.names = FALSE)
+write.csv(txt.df, "../data/global_gut/bss.csv", row.names = FALSE)
 write.csv(p.df, "../data/global_gut/nmds.csv", row.names = FALSE)
 ```
 
 # 3. Fig. 5
 
 ```{r, message=FALSE, warning=FALSE, comment=NA}
-txt.df = read_csv("../data/global_gut/ssb.csv")
+txt.df = read_csv("../data/global_gut/bss.csv")
 p.df = read_csv("../data/global_gut/nmds.csv")
 txt.df$method = factor(txt.df$method, levels = c("ANCOM-BC", "ELib-UQ", "ELib-TMM", "CSS",
                                                  "MED", "UQ", "TMM", "TSS"))
@@ -276,7 +277,7 @@ p=ggplot(p.df, aes(X1, X2, color = country)) + geom_point(size = 0.3) +
         legend.position = "bottom",
         strip.background = element_rect(fill="white"))+
   guides(color = guide_legend(override.aes = list(size=3)))+
-  geom_text(data = txt.df, mapping = aes(x = X1, y = X2, label = ssb, color = NULL,group= NULL))
+  geom_text(data = txt.df, mapping = aes(x = X1, y = X2, label = bss, color = NULL,group= NULL))
 p
 ggsave("../figures/Figure 5.pdf", width=8, height=5, units='in')
 ggsave("../figures/Figure 5.jpeg", width=8, height=5, units='in', dpi = 300)

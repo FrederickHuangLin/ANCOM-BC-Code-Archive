@@ -8,6 +8,7 @@ output:
 
 ```{r setup, include=FALSE}
 rm(list = ls())
+knitr::opts_chunk$set(fig.width = 6.25, fig.height = 5)
 
 library(tidyverse)
 library(phyloseq)
@@ -1058,7 +1059,7 @@ ggsave("../figures/Figure S10b.jpeg", width=6.25, height=5, units='in', dpi = 30
 
 ## 5.3 Fig. S10
 
-```{r, message=FALSE, warning=FALSE, comment=NA, fig.height=10}
+```{r, message=FALSE, warning=FALSE, comment=NA, fig.height=9}
 p = ggarrange(p1 + labs(x=NULL), p2 + labs(x=NULL),
               labels = c("a", "b"), 
               ncol = 1, nrow = 2,

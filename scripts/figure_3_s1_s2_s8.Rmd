@@ -8,6 +8,7 @@ output:
 
 ```{r setup, include=FALSE}
 rm(list = ls())
+knitr::opts_chunk$set(fig.width = 8.5, fig.height = 5)
 
 library(tidyverse)
 library(phyloseq)
@@ -154,7 +155,9 @@ p=ggplot(p.df, aes(x=method, y=value, color=method))+
         axis.ticks.x=element_blank(),
         axis.text.x = element_blank(),
         legend.position = c(0.36, 0.85),
-        legend.direction = "horizontal", legend.box = "vertical")
+        legend.direction = "horizontal", legend.box = "vertical")+
+  guides(color = guide_legend(order=1),
+         shape = guide_legend(order=2))
 p
 ggsave("../figures/Figure 3.pdf", width=8.5, height=5, units='in')
 ggsave("../figures/Figure 3.jpeg", width=8.5, height=5, units='in', dpi = 300)
@@ -289,7 +292,9 @@ p=ggplot(p.df, aes(x=method, y=value, color=method))+
         axis.ticks.x=element_blank(),
         axis.text.x = element_blank(),
         legend.position = c(0.36, 0.85),
-        legend.direction = "horizontal", legend.box = "vertical")
+        legend.direction = "horizontal", legend.box = "vertical")+
+  guides(color = guide_legend(order=1),
+         shape = guide_legend(order=2))
 p
 ggsave("../figures/Figure S1.pdf", width=8.5, height=5, units='in')
 ggsave("../figures/Figure S1.jpeg", width=8.5, height=5, units='in', dpi = 300)
@@ -424,7 +429,9 @@ p=ggplot(p.df, aes(x=method, y=value, color=method))+
         axis.ticks.x=element_blank(),
         axis.text.x = element_blank(),
         legend.position = c(0.36, 0.85),
-        legend.direction = "horizontal", legend.box = "vertical")
+        legend.direction = "horizontal", legend.box = "vertical")+
+  guides(color = guide_legend(order=1),
+         shape = guide_legend(order=2))
 p
 ggsave("../figures/Figure S2.pdf", width=8.5, height=5, units='in')
 ggsave("../figures/Figure S2.jpeg", width=8.5, height=5, units='in', dpi = 300)
@@ -558,7 +565,9 @@ p=ggplot(p.df, aes(x=method, y=value, color=method))+
         axis.ticks.x=element_blank(),
         axis.text.x = element_blank(),
         legend.position = c(0.36, 0.85),
-        legend.direction = "horizontal", legend.box = "vertical")
+        legend.direction = "horizontal", legend.box = "vertical")+
+  guides(color = guide_legend(order=1),
+         shape = guide_legend(order=2))
 p
 ggsave("../figures/Figure S8.pdf", width=8.5, height=5, units='in')
 ggsave("../figures/Figure S8.jpeg", width=8.5, height=5, units='in', dpi = 300)
