@@ -698,14 +698,14 @@ ggsave("../figures/Figure 6b.jpeg", width=6.25, height=5, units='in', dpi = 300)
 
 ## 3.8 Fig.6
 
-```{r, message=FALSE, warning=FALSE, comment=NA, , fig.height=9, fig.width=6.25}
+```{r, message=FALSE, warning=FALSE, comment=NA, fig.width=12, fig.height=5}
 p = ggarrange(p1, p2,
               labels = c("a", "b"), 
-              ncol = 1, nrow = 2,
-              common.legend = TRUE, legend="right")
+              ncol = 2, nrow = 1, widths = c(2, 1),
+              common.legend = TRUE, legend="bottom")
 p
-ggsave("../figures/Figure 6.pdf", width=6.25, height=9, units='in')
-ggsave("../figures/Figure 6.jpeg", width=6.25, height=9, units='in', dpi = 300)
+ggsave("../figures/Figure 6.pdf", width=12, height=5, units='in')
+ggsave("../figures/Figure 6.jpeg", width=12, height=5, units='in', dpi = 300)
 ```
 
 # Session information

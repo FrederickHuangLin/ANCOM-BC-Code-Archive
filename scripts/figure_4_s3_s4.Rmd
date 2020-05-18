@@ -741,14 +741,14 @@ ggsave("../figures/Figure 4b.jpeg", width=6.25, height=5, units='in', dpi = 300)
 
 ## 2.3 Fig. 4
 
-```{r, message=FALSE, warning=FALSE, comment=NA, fig.height=10}
+```{r, message=FALSE, warning=FALSE, comment=NA, fig.width=12, fig.height=5}
 p = ggarrange(p1 + labs(x=NULL), p2 + labs(x=NULL),
               labels = c("a", "b"), 
-              ncol = 1, nrow = 2,
+              ncol = 2, nrow = 1,
               common.legend = TRUE, legend="bottom")
 annotate_figure(p, left = text_grob("Proportion of Differentially Abundant Taxa", rot = 90))
-ggsave("../figures/Figure 4.pdf", width=6.25, height=9, units='in')
-ggsave("../figures/Figure 4.jpeg", width=6.25, height=9, units='in', dpi = 300)
+ggsave("../figures/Figure 4.pdf", width=12, height=5, units='in')
+ggsave("../figures/Figure 4.jpeg", width=12, height=5, units='in', dpi = 300)
 ```
 
 # 3. FDR and Power with the Presence of Moderate Variable Sampling Fractions
