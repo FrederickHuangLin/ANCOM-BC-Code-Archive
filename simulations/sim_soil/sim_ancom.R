@@ -1,7 +1,7 @@
 library(microbiome)
 library(tidyverse)
 source("sim_data_soil.R")
-source("ancom_bc_v1.0.R")
+source("ancom_bc.R")
 source("ancom_simple.R")
 
 data("GlobalPatterns")

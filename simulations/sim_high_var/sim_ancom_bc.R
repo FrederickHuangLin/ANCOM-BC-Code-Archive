@@ -1,6 +1,6 @@
 library(tidyverse)
 source("sim_data_poi_gam_two_grp.R")
-source("ancom_bc_v1.0.R")
+source("ancom_bc.R")
 
 # The number of taxa, library size, and sample size
 n.taxa = 1000; balanced.micro.load = FALSE; balanced.lib.size = TRUE 

@@ -1,9 +1,9 @@
 {
-    "path" : "~/Box Sync/0. Dissertation Research/1st paper/manuscript/Tables and Figures/scripts",
-    "sortOrder" : [
+    "path": "~/Nutstore/Dissertation Research/1st paper/manuscript/Tables and Figures",
+    "sortOrder": [
         {
-            "ascending" : true,
-            "columnIndex" : 2
+            "columnIndex": 2,
+            "ascending": true
         }
     ]
 }

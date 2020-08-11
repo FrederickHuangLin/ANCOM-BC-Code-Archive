@@ -17,8 +17,8 @@ panderOptions('table.caption.prefix', NULL)
 panderOptions('table.continues', NULL)
 panderOptions('table.emphasize.rownames', FALSE)
 
-source("ancom_bc_v1.0.R")
-source("ancom_v1.0.R")
+source("ancom_bc.R")
+source("ancom.R")
 source("sim_data_poi_gam_two_grp.R")
 ```
 

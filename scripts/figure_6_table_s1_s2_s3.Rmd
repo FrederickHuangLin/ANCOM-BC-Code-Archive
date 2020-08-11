@@ -22,7 +22,7 @@ panderOptions('table.caption.prefix', NULL)
 panderOptions('table.continues', NULL)
 panderOptions('table.emphasize.rownames', FALSE)
 
-source("ancom_bc_v1.0.R")
+source("ancom_bc.R")
 ```
 
 # 1. Feature Table Construction

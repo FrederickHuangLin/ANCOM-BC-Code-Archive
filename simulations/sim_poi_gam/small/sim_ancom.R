@@ -1,6 +1,6 @@
 library(tidyverse)
 source("sim_data_poi_gam_two_grp.R")
-source("ancom_bc_v1.0.R")
+source("ancom_bc.R")
 source("ancom_simple.R")
 
 # The number of taxa, library size, and sample size

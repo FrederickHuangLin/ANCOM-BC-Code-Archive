@@ -1,5 +1,5 @@
 library(tidyverse)
-source("ancom_bc_v1.0.R")
+source("ancom_bc.R")
 source("sim_data_poi_gam_two_grp.R")
 
 # The number of taxa, samping fraction variability, and sample size

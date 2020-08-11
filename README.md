@@ -1,5 +1,7 @@
-# User Manual for ANCOM-BC v1.0
+# User Manual for ANCOM-BC Function
 [![DOI](https://zenodo.org/badge/198737095.svg)](https://zenodo.org/badge/latestdoi/198737095)
+
+This is the repository archiving data and scripts for reproducing results presented in the Nat. Comm. paper [ANCOM-BC](https://www.nature.com/articles/s41467-020-17041-7). For the corresponding R package, refer to [ANCOMBC](https://github.com/FrederickHuangLin/ANCOMBC) repository.
 
 The current code implements ANCOM-BC in cross-sectional datasets for comparing the change of absolute abundance for each taxon among different experimental groups. 
 

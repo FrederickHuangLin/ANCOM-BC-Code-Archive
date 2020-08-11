@@ -21,7 +21,7 @@ panderOptions('table.continues', NULL)
 panderOptions('table.emphasize.rownames', FALSE)
 
 source("sim_data_poi_gam_two_grp.R")
-source("ancom_bc_v1.0.R")
+source("ancom_bc.R")
 source("ancom_simple.R")
 ```
 
