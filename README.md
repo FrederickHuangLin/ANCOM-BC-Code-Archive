@@ -1,7 +1,9 @@
 # User Manual for ANCOM-BC Function
 [![DOI](https://zenodo.org/badge/198737095.svg)](https://zenodo.org/badge/latestdoi/198737095)
 
-This is the repository archiving data and scripts for reproducing results presented in the Nat. Comm. paper [ANCOM-BC](https://www.nature.com/articles/s41467-020-17041-7). For the corresponding R package, refer to [ANCOMBC](https://github.com/FrederickHuangLin/ANCOMBC) repository.
+This is the repository archiving data and scripts for reproducing results presented in the Nat. Comm. paper [ANCOM-BC](https://www.nature.com/articles/s41467-020-17041-7). 
+
+**For the corresponding R package, refer to [ANCOMBC](https://github.com/FrederickHuangLin/ANCOMBC) repository.**
 
 The current code implements ANCOM-BC in cross-sectional datasets for comparing the change of absolute abundance for each taxon among different experimental groups. 
 
@@ -23,7 +25,7 @@ library(nloptr)
 
 #### Arguments
 
-*	```feature.table```: Data frame or matrix representing observed OTU table with samples in rows and OTUs (or taxa) in columns.
+*	```feature.table```: Data frame or matrix representing observed OTU table with OTUs (or taxa) in rows and samples in columns.
 *	```meta.data```: Data frame or matrix of all variables and covariates of interest.
 *	```sample.var```: Character. The name of column storing sample IDs.
 *	```group.var```: Character. The name of the main variable of interest. ANCOM-BC v1.0 only supports discrete ```group.var``` and aims to compare the change of absolute abundance across different levels of ```group.var```.
@@ -47,7 +49,7 @@ library(nloptr)
 
 #### Arguments:
 
-*	```feature.table```: Data frame or matrix representing the pre-processed OTU table with samples in rows and OTUs (or taxa) in columns. 
+*	```feature.table```: Data frame or matrix representing the pre-processed OTU table with OTUs (or taxa) in rows and samples in columns. 
 *	```grp.name```: A character vector indicating the levels of group. 
 *	```grp.ind```: A numeric vector indicating group assignment for each sample. 1 corresponds to the 1st level of ```grp.name```, 2 corresponds to the 2nd level of ```grp.name```, etc.
 *	```struc.zero```: A matrix consists of 0 and 1s with 1 indicating the taxon is identified as a structural zero in the corresponding group.
@@ -60,16 +62,16 @@ library(nloptr)
 #### Value:
 *	```feature.table```: Data frame or matrix. Return the input ```feature.table```.
 *	```res```: Data frame. The primary result of ANCOM-BC consisting of: 
-    * ```mean.difference```: Numeric. The estimated mean difference of absolute abundance between groups in log scale;
+    * ```mean.difference```: Numeric. The estimated mean difference of absolute abundance between groups in log scale (natural log);
     * ```se```: Numeric. The standard error of ```mean.difference```;
     * ```W```: Numeric. ```mean.difference/se```, which is the test statistic of ANCOM-BC.
     * ```p.val```: Numeric. P-value obtained from two-sided Z-test using the test statistic ```W```.
     * ```q.val```. Numeric. Q-value obtained by applying ```adj.method``` to ```p-val```.
     * ```diff.abn```. Logical. TRUE if the taxon has ```q.val``` less than ```alpha```.
-*	```d```: A numeric vector. Estimated sampling fractions in log scale.
-*	```mu```: A numeric vector. Estimated log mean absolute abundance for each group.
-*	```bias.em```: Numeric. Estimated mean difference of log sampling fractions between groups through E-M algorithm.
-*	```bias.wls```: Numeric. Estimated mean difference of log sampling fractions between groups through weighted least squares.
+*	```d```: A numeric vector. Estimated sampling fractions in log scale (natural log).
+*	```mu```: A numeric vector. Estimated log (natural log) mean absolute abundance for each group.
+*	```bias.em```: Numeric. Estimated mean difference of log (natural log) sampling fractions between groups through E-M algorithm.
+*	```bias.wls```: Numeric. Estimated mean difference of log (natural log) sampling fractions between groups through weighted least squares.
 
 ## Flowchart of ANCOM-BC
 
